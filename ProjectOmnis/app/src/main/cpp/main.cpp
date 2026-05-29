@@ -3,10 +3,9 @@
 #include <unistd.h>
 #include <sched.h>
 #include <sys/mman.h>
-
-// Note: Requires OpenXR headers from Meta XR SDK
-// #include <openxr/openxr.h>
-// #include <openxr/openxr_platform.h>
+#include "OpenXRContext.h"
+#include "WorldManager.h"
+#include "VoiceInterface.h"
 
 #define LOGI(...) ((void)__android_log_print(ANDROID_LOG_INFO, "OmnisEngine", __VA_ARGS__))
 #define LOGE(...) ((void)__android_log_print(ANDROID_LOG_ERROR, "OmnisEngine", __VA_ARGS__))
@@ -17,6 +16,79 @@ void SetThreadAffinity(int coreId) {
     CPU_ZERO(&cpuset);
     CPU_SET(coreId, &cpuset);
     sched_setaffinity(gettid(), sizeof(cpu_set_t), &cpuset);
+}
+
+// [MQ-2] Memory Arena Allocation
+void* AllocateMemoryArena(size_t sizeGB) {
+    size_t sizeBytes = sizeGB * 1024 * 1024 * 1024;
+    void* mem = mmap(NULL, sizeBytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (mem == MAP_FAILED) {
+        LOGE("Failed to allocate %zu GB memory arena", sizeGB);
+        return nullptr;
+    }
+    LOGI("Successfully allocated %zu GB memory arena", sizeGB);
+    return mem;
+}
+
+// Global engine state (for architecture demo)
+WorldManager g_worldManager;
+VoiceInterface g_voiceInterface;
+
+// [MQ-1] Main Engine Loop
+void RunEngineLoop(struct android_app* app) {
+    LOGI("Entering main engine loop...");
+    
+    // Set Main Render Thread to Prime Core (Core 6)
+    SetThreadAffinity(6);
+
+    // Initialize 3-World Cache Engine Arenas
+    void* homeArena = AllocateMemoryArena(1); // 1.5GB represented as 1GB for safety in testing
+    void* currentEnvArena = AllocateMemoryArena(2);
+    void* stagingArena = AllocateMemoryArena(1);
+    
+    g_worldManager.Initialize(homeArena, currentEnvArena, stagingArena);
+    
+    // Initialize Voice/AI Interface
+    g_voiceInterface.Initialize();
+    g_voiceInterface.SetCommandCallback([](VoiceCommand cmd, const std::string& text) {
+        if (cmd == VoiceCommand::GO_HOME) {
+            LOGI("Voice Callback Triggered: Executing Priority Go Home.");
+            g_worldManager.InstantGoHome();
+        }
+    });
+    
+    // Initialize Graphics Engine
+    OpenXRContext xrContext(app);
+    xrContext.Initialize();
+    
+    // Test: Trigger a portal warm-up on boot
+    g_worldManager.TriggerPortalWarmup(12); // Loading flagship portal #12
+    
+    bool running = true;
+    while (running) {
+        int events;
+        struct android_poll_source* source;
+        
+        while (ALooper_pollAll(0, nullptr, &events, (void**)&source) >= 0) {
+            if (source != nullptr) {
+                source->process(app, source);
+            }
+            if (app->destroyRequested != 0) {
+                running = false;
+            }
+        }
+        
+        // Execute the OpenXR & Vulkan rendering loop
+        if (running) {
+            g_voiceInterface.Update();
+            g_worldManager.Update(0.011f);
+            xrContext.ProcessFrame();
+        }
+    }
+
+    if (homeArena) madvise(homeArena, 1024 * 1024 * 1024, MADV_DONTNEED);
+    if (currentEnvArena) madvise(currentEnvArena, 2LL * 1024 * 1024 * 1024, MADV_DONTNEED);
+    if (stagingArena) madvise(stagingArena, 1024 * 1024 * 1024, MADV_DONTNEED);
 }
 
 // [MQ-2] Memory Arena Allocation
@@ -42,6 +114,10 @@ void RunEngineLoop(struct android_app* app) {
     void* homeArena = AllocateMemoryArena(1); // 1.5GB represented as 1GB for safety in testing
     void* currentEnvArena = AllocateMemoryArena(2);
     
+    // Initialize Graphics Engine
+    OpenXRContext xrContext(app);
+    xrContext.Initialize();
+    
     bool running = true;
     while (running) {
         int events;
@@ -56,9 +132,10 @@ void RunEngineLoop(struct android_app* app) {
             }
         }
         
-        // TODO: OpenXR xrWaitFrame, xrBeginFrame
-        // TODO: Vulkan TBDR Draw Calls
-        // TODO: xrEndFrame (Submitting composition layers for HUD)
+        // Execute the OpenXR & Vulkan rendering loop
+        if (running) {
+            xrContext.ProcessFrame();
+        }
     }
 
     if (homeArena) madvise(homeArena, 1024 * 1024 * 1024, MADV_DONTNEED);

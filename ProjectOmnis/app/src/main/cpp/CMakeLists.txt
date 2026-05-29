@@ -10,7 +10,15 @@ add_library(native_app_glue STATIC ${ANDROID_NDK}/sources/android/native_app_glu
 target_include_directories(native_app_glue PUBLIC ${ANDROID_NDK}/sources/android/native_app_glue)
 
 # Target Library
-add_library(omnis_engine SHARED main.cpp)
+add_library(omnis_engine SHARED 
+    main.cpp
+    OpenXRContext.cpp
+    VulkanRenderer.cpp
+    UIManager.cpp
+    WorldManager.cpp
+    NetworkClient.cpp
+    VoiceInterface.cpp
+)
 
 # Libraries to link (OpenXR and Vulkan need to be provided by Meta XR SDK)
 target_link_libraries(omnis_engine
