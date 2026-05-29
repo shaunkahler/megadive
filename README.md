@@ -1,4 +1,4 @@
-# Project Omnis 🌌
+# MegaDive OS 🌌
 
 **A Standalone Spatial OS Architecture for Meta Quest (Snapdragon XR2 Gen 2)**
 
