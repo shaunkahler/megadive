@@ -2,15 +2,15 @@
 
 **A Standalone Spatial OS Architecture for Meta Quest (Snapdragon XR2 Gen 2)**
 
-MegaDive is an experimental, bare-metal native Android/Linux application designed to operate as a primary Shell interface, completely bypassing the standard Meta Quest Horizon OS. Built strictly in C++ using the Android NDK and designed for OpenXR, Omnis focuses on maximizing thermal efficiency, aggressive memory optimization, and zero-latency asynchronous rendering on resource-constrained mobile hardware.
+MegaDive is an experimental, bare-metal native Android/Linux application designed to operate as a primary Shell interface, completely bypassing the standard Meta Quest Horizon OS. Built strictly in C++ using the Android NDK and designed for OpenXR, MegaDive focuses on maximizing thermal efficiency, aggressive memory optimization, and zero-latency asynchronous rendering on resource-constrained mobile hardware.
 
 ## 🚀 Vision
 
-To provide a seamless, massive-world MMO and productivity environment natively on standalone VR/MR headsets. By dropping Java/Kotlin overhead and interfacing directly with the Linux kernel and OpenXR runtime, Omnis extracts maximum performance from the Snapdragon XR2 Gen 2 architecture.
+To provide a seamless, massive-world MMO and productivity environment natively on standalone VR/MR headsets. By dropping Java/Kotlin overhead and interfacing directly with the Linux kernel and OpenXR runtime, MegaDive extracts maximum performance from the Snapdragon XR2 Gen 2 architecture.
 
 ## 🧠 Core Architecture & Features (Current Scaffold)
 
-*   **OS Override (Home Launcher):** Configured via `AndroidManifest.xml` to act as an Android Home Intent, dropping the user directly into the Omnis shell upon boot.
+*   **OS Override (Home Launcher):** Configured via `AndroidManifest.xml` to act as an Android Home Intent, dropping the user directly into the MegaDive shell upon boot.
 *   **Bare-Metal Execution:** Utilizes `android_native_app_glue` to run entirely in C++, bypassing the Dalvik/ART virtual machine to eliminate garbage collection stutters.
 *   **Aggressive Power Management:** Requests Meta-specific permissions (`com.oculus.permission.SET_CPU_GPU_LEVEL`) to command Level 5 (Maximum Sustained) clock speeds during heavy portal loads.
 *   **3-World Cache Engine (Memory Arenas):** Uses low-level Linux `mmap` to pre-allocate gigabyte-scale memory arenas (Home, Active, Staging). Utilizes `madvise(MADV_DONTNEED)` to gracefully return pages to the OS, evading the Android Low Memory Killer (LMK) during massive world transitions.
@@ -28,7 +28,7 @@ Currently, this repository contains the foundational C++ kernel overrides and bu
 ### Build Instructions
 
 1. Clone the repository.
-2. Open the `ProjectOmnis` directory in Android Studio.
+2. Open the `ProjectMegaDive` directory in Android Studio.
 3. Ensure your NDK path is configured correctly in `local.properties`.
 4. Drop the Meta OpenXR Mobile SDK headers into `app/src/main/cpp/include` and the `.so` binaries into your `jniLibs` folder.
 5. Uncomment the OpenXR includes and linker flags in `main.cpp` and `CMakeLists.txt`.
