@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.projectomnis.shell"
     android:versionCode="1"
     android:versionName="1.0">
 
     <!-- Meta Quest Specific Permissions -->
     <uses-permission android:name="com.oculus.permission.SET_CPU_GPU_LEVEL" />
     <uses-permission android:name="com.oculus.permission.USE_ANCHOR_API" />
+    <uses-permission android:name="com.oculus.permission.HAND_TRACKING" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
 
     <uses-feature android:name="android.hardware.vr.headtracking" android:version="1" android:required="true" />
+    <uses-feature android:name="oculus.software.handtracking" android:required="false" />
 
     <application
         android:allowBackup="false"
-        android:extractNativeLibs="true"
         android:label="Project Omnis">
         <meta-data android:name="com.oculus.supportedDevices" android:value="quest2|questpro|quest3" />
         
@@ -30,6 +30,7 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="com.oculus.intent.category.VR" />
                 <!-- Launch as Home Environment (Kiosk/Shell replacement) -->
                 <category android:name="android.intent.category.HOME" />
                 <category android:name="android.intent.category.DEFAULT" />

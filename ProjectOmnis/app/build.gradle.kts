@@ -5,10 +5,12 @@ plugins {
 android {
     namespace = "com.projectomnis.shell"
     compileSdk = 34
+    // NDK 26 is required for API 34 support
+    ndkVersion = "26.1.10909125"
 
     defaultConfig {
         applicationId = "com.projectomnis.shell"
-        minSdk = 29
+        minSdk = 34
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
@@ -16,7 +18,14 @@ android {
         externalNativeBuild {
             cmake {
                 cppFlags += "-std=c++20"
+                // Ensure the native platform matches the library requirements
+                arguments("-DANDROID_PLATFORM=android-34")
+                abiFilters("arm64-v8a")
             }
+        }
+        
+        ndk {
+            abiFilters.add("arm64-v8a")
         }
     }
 
@@ -34,6 +43,10 @@ android {
         }
     }
 
+    buildFeatures {
+        prefab = true
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
@@ -41,5 +54,6 @@ android {
 }
 
 dependencies {
-    // No Java dependencies needed, pure C++!
+    implementation("org.khronos.openxr:openxr_loader_for_android:1.0.34")
+    implementation("com.meta.horizonos:horizon-os-nsdk:204")
 }

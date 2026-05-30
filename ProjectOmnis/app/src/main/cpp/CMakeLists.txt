@@ -20,13 +20,23 @@ add_library(omnis_engine SHARED
     VoiceInterface.cpp
 )
 
-# Libraries to link (OpenXR and Vulkan need to be provided by Meta XR SDK)
+# Target Include Directories
+target_include_directories(omnis_engine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+# Find Vulkan in the NDK
+find_package(Vulkan REQUIRED)
+
+# Find OpenXR and Horizon OS SDK via Android Prefab
+find_package(OpenXR REQUIRED CONFIG)
+find_package(horizon-os-nsdk REQUIRED CONFIG)
+
 target_link_libraries(omnis_engine
     native_app_glue
     android
     log
     EGL
     GLESv3
-    # openxr_loader # Requires Meta OpenXR Mobile SDK
-    # vulkan        # Requires Android NDK Vulkan headers
+    Vulkan::Vulkan
+    OpenXR::openxr_loader
+    horizon-os-nsdk::hzos
 )

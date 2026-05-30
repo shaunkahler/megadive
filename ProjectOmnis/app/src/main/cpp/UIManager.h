@@ -2,18 +2,14 @@
 
 #include <vector>
 #include <string>
+#include <cstdint>
 
-// Note: Requires OpenXR headers
-// #include <openxr/openxr.h>
-
-// Forward declarations for OpenXR types (stubbed)
-typedef uint64_t XrSpace;
-typedef uint64_t XrSwapchain;
-
-struct XrVector3f { float x, y, z; };
-struct XrQuaternionf { float x, y, z, w; };
-struct XrPosef { XrQuaternionf orientation; XrVector3f position; };
-struct XrExtent2Df { float width, height; };
+// Use official OpenXR headers to ensure type consistency across the project.
+// This prevents "typedef redefinition" errors on 64-bit platforms.
+#ifndef XR_USE_PLATFORM_ANDROID
+#define XR_USE_PLATFORM_ANDROID
+#endif
+#include <openxr/openxr.h>
 
 struct VirtualScreen {
     uint32_t id;
@@ -42,11 +38,11 @@ public:
     void* GetCompositionLayersStub(); // Stubbed return for compilation without OpenXR
 
 private:
-    XrSpace m_headSpace;
-    XrSpace m_worldSpace;
+    XrSpace m_headSpace = XR_NULL_HANDLE;
+    XrSpace m_worldSpace = XR_NULL_HANDLE;
     
     // The Always-On Visor HUD [MQ-3]
-    XrSwapchain m_hudSwapchain;
+    XrSwapchain m_hudSwapchain = XR_NULL_HANDLE;
     XrPosef m_hudPose;
     XrExtent2Df m_hudSize;
 

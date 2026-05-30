@@ -29,6 +29,6 @@ void NetworkClient::SendPlayerPosition(const float pos[3], const float rot[4]) {
 }
 
 void NetworkClient::SendWorldModification(const EntityModificationPacket& packet) {
-    LOGI("Broadcasting World Modification (Entity %llu) to MMO Server", packet.entity);
+    LOGI("Broadcasting World Modification (Entity %llu) to MMO Server", (unsigned long long)packet.entity);
     // Stub: Send TCP or Reliable-UDP packet containing the delta-modification
 }
