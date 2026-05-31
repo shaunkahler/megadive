@@ -38,13 +38,13 @@ void UIManager::InitializeLauncherMenu() {
         btn.label = appNames[i];
         btn.packageName = packages[i];
         
-        // Centered straight ahead, closer (1.2 meters away) and tighter spacing for comfortable selection
-        btn.pose.position = { -0.375f + i * 0.25f, 1.0f, -1.2f };
+        // Centered straight ahead, right in front of the user (0.6 meters away). Y=0.0f is eye-level since reference space is LOCAL.
+        btn.pose.position = { -0.225f + i * 0.15f, -0.1f, -0.6f };
         btn.pose.orientation = { 0.0f, 0.0f, 0.0f, 1.0f }; // Identity (facing straight forward)
         
-        btn.size[0] = 0.22f; // Width (22cm)
-        btn.size[1] = 0.13f; // Height (13cm)
-        btn.size[2] = 0.04f; // Depth (4cm)
+        btn.size[0] = 0.12f; // Width (12cm)
+        btn.size[1] = 0.12f; // Height (12cm)
+        btn.size[2] = 0.02f; // Depth (2cm)
         
         btn.color[0] = colors[i][0];
         btn.color[1] = colors[i][1];
@@ -90,7 +90,7 @@ static void LaunchAndroidPackage(struct android_app* app, const char* packageNam
 void UIManager::UpdateMenu(float deltaTime, 
                           const XrHandJointLocationEXT* leftJoints, bool leftActive, 
                           const XrHandJointLocationEXT* rightJoints, bool rightActive, 
-                          void* androidApp) {
+                          void* androidApp, XrPosef headPose) {
     struct android_app* app = (struct android_app*)androidApp;
 
     // 1. Detect if Right index finger tip touches Left wrist watch area to toggle menu
@@ -119,6 +119,9 @@ void UIManager::UpdateMenu(float deltaTime,
         bool wristTouched = jointsTracked && (dist < 0.15f); // Expanded touch radius to 15cm to comfortably cover forearm skin surface
         if (wristTouched && !m_wristTouchedLastFrame) {
             m_menuVisible = !m_menuVisible;
+            if (m_menuVisible) {
+                PositionMenuInFrontOf(headPose);
+            }
             LOGI("Wrist watch touch detected! Toggled far menu visibility to: %s", m_menuVisible ? "VISIBLE" : "HIDDEN");
         }
         m_wristTouchedLastFrame = wristTouched;
@@ -133,70 +136,105 @@ void UIManager::UpdateMenu(float deltaTime,
         return;
     }
 
-    // 2. Hand Pointer Raycasting (Right wrist joint 0 -> right index proximal joint 7)
-    bool isPointing = false;
-    float rayOrigin[3] = {0,0,0};
-    float rayDir[3] = {0,0,-1};
+    // 2. Hand Pointer Raycasting (Right middle proximal joint 12 -> right middle tip 15)
+    m_isPointing = false;
+    bool isIndexFlexed = false;
+    bool clickTriggered = false;
     
     if (rightActive && rightJoints) {
-        if ((rightJoints[0].locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0 &&
-            (rightJoints[7].locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0) {
+        if ((rightJoints[12].locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0 &&
+            (rightJoints[15].locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0) {
             
-            rayOrigin[0] = rightJoints[0].pose.position.x;
-            rayOrigin[1] = rightJoints[0].pose.position.y;
-            rayOrigin[2] = rightJoints[0].pose.position.z;
+            m_pointerOrigin[0] = rightJoints[12].pose.position.x;
+            m_pointerOrigin[1] = rightJoints[12].pose.position.y;
+            m_pointerOrigin[2] = rightJoints[12].pose.position.z;
             
-            float rx = rightJoints[7].pose.position.x - rayOrigin[0];
-            float ry = rightJoints[7].pose.position.y - rayOrigin[1];
-            float rz = rightJoints[7].pose.position.z - rayOrigin[2];
+            float rx = rightJoints[15].pose.position.x - m_pointerOrigin[0];
+            float ry = rightJoints[15].pose.position.y - m_pointerOrigin[1];
+            float rz = rightJoints[15].pose.position.z - m_pointerOrigin[2];
             float rlen = sqrtf(rx*rx + ry*ry + rz*rz);
             if (rlen > 0.001f) {
-                rayDir[0] = rx / rlen;
-                rayDir[1] = ry / rlen;
-                rayDir[2] = rz / rlen;
-                isPointing = true;
+                m_pointerDir[0] = rx / rlen;
+                m_pointerDir[1] = ry / rlen;
+                m_pointerDir[2] = rz / rlen;
+                m_isPointing = true;
+            }
+        }
+
+        // --- Index Proximal (Base) Flex Click Gesture ---
+        if ((rightJoints[6].locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0 &&
+            (rightJoints[7].locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0 &&
+            (rightJoints[8].locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0) {
+            
+            // Palm segment: Metacarpal (6) to Proximal (7)
+            float dx_palm = rightJoints[7].pose.position.x - rightJoints[6].pose.position.x;
+            float dy_palm = rightJoints[7].pose.position.y - rightJoints[6].pose.position.y;
+            float dz_palm = rightJoints[7].pose.position.z - rightJoints[6].pose.position.z;
+            float len_palm = sqrtf(dx_palm*dx_palm + dy_palm*dy_palm + dz_palm*dz_palm);
+
+            // Base finger segment: Proximal (7) to Intermediate (8)
+            float dx_base = rightJoints[8].pose.position.x - rightJoints[7].pose.position.x;
+            float dy_base = rightJoints[8].pose.position.y - rightJoints[7].pose.position.y;
+            float dz_base = rightJoints[8].pose.position.z - rightJoints[7].pose.position.z;
+            float len_base = sqrtf(dx_base*dx_base + dy_base*dy_base + dz_base*dz_base);
+
+            if (len_palm > 0.001f && len_base > 0.001f) {
+                // Dot product / (len1 * len2) gives cos(theta). 
+                float palm_base_dot = (dx_palm*dx_base + dy_palm*dy_base + dz_palm*dz_base) / (len_palm * len_base);
+
+                // Require the bottom joint to be flexed (angle > ~20 deg). Cos(20) is roughly 0.940
+                isIndexFlexed = (palm_base_dot < 0.94f);
             }
         }
     }
 
-    // 3. Pinch-to-Select Detection (Right Thumb joint 5 <-> Right Index joint 10)
-    bool isPinching = false;
-    if (rightActive && rightJoints) {
-        if ((rightJoints[5].locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0 &&
-            (rightJoints[10].locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0) {
-            
-            float pdx = rightJoints[10].pose.position.x - rightJoints[5].pose.position.x;
-            float pdy = rightJoints[10].pose.position.y - rightJoints[5].pose.position.y;
-            float pdz = rightJoints[10].pose.position.z - rightJoints[5].pose.position.z;
-            float pdist = sqrtf(pdx*pdx + pdy*pdy + pdz*pdz);
-            isPinching = (pdist < 0.025f); // 2.5cm thumb-to-index pinch distance
+    // Process the Click State Machine
+    if (m_isPointing) {
+        if (!m_indexFlexed && isIndexFlexed) {
+            m_indexFlexed = true;
+            m_indexFlexTimer = 0.0f; // Start flex timer
+        } else if (m_indexFlexed) {
+            m_indexFlexTimer += deltaTime;
+            if (!isIndexFlexed) {
+                // Unflexed! Check if it was quick (< 400ms)
+                if (m_indexFlexTimer < 0.400f) { 
+                    clickTriggered = true;
+                    m_clickVisualTimer = 0.2f; // Trigger visual laser flash
+                }
+                m_indexFlexed = false;
+            } else if (m_indexFlexTimer > 0.500f) {
+                // Held the flex too long, cancel the click
+                m_indexFlexed = false;
+            }
         }
     }
 
-    bool pinchTriggered = isPinching && !m_rightHandPinchingLastFrame;
-    m_rightHandPinchingLastFrame = isPinching;
-
-    // 4. Ray-Sphere Collision Testing for Bounding Target Volumes (25cm radii)
+    // 4. Ray-Bounding Box Collision Testing for precise targeting
     for (auto& btn : m_menuButtons) {
         bool isHovered = false;
         
-        if (isPointing) {
-            float vx = btn.pose.position.x - rayOrigin[0];
-            float vy = btn.pose.position.y - rayOrigin[1];
-            float vz = btn.pose.position.z - rayOrigin[2];
+        if (m_isPointing) {
+            float vx = btn.pose.position.x - m_pointerOrigin[0];
+            float vy = btn.pose.position.y - m_pointerOrigin[1];
+            float vz = btn.pose.position.z - m_pointerOrigin[2];
             
-            float t = vx*rayDir[0] + vy*rayDir[1] + vz*rayDir[2];
+            float t = vx*m_pointerDir[0] + vy*m_pointerDir[1] + vz*m_pointerDir[2];
             if (t > 0.0f) {
-                float px = rayOrigin[0] + t * rayDir[0];
-                float py = rayOrigin[1] + t * rayDir[1];
-                float pz = rayOrigin[2] + t * rayDir[2];
+                float px = m_pointerOrigin[0] + t * m_pointerDir[0];
+                float py = m_pointerOrigin[1] + t * m_pointerDir[1];
+                float pz = m_pointerOrigin[2] + t * m_pointerDir[2];
                 
                 float cdx = px - btn.pose.position.x;
                 float cdy = py - btn.pose.position.y;
                 float cdz = pz - btn.pose.position.z;
-                float distSq = cdx*cdx + cdy*cdy + cdz*cdz;
                 
-                if (distSq < (0.28f * 0.28f)) { // Generous 28cm sphere target for seamless far selection
+                // Since the menu panels always face the user horizontally (upright),
+                // we can perform a local-space bounding box check.
+                // X/Z forms the width plane, Y is height.
+                float verticalDist = std::abs(cdy);
+                float horizontalDist = std::sqrt(cdx*cdx + cdz*cdz);
+                
+                if (verticalDist < (btn.size[1] * 0.5f) && horizontalDist < (btn.size[0] * 0.5f)) {
                     isHovered = true;
                 }
             }
@@ -208,8 +246,8 @@ void UIManager::UpdateMenu(float deltaTime,
                 LOGI("Hand Point Hover Enter: '%s'", btn.label.c_str());
             }
             
-            if (pinchTriggered) {
-                LOGI("Pinch Gesture Trigger: Launching package: %s", btn.packageName.c_str());
+            if (clickTriggered) {
+                LOGI("Index Flex Click Trigger: Launching package: %s", btn.packageName.c_str());
                 LaunchAndroidPackage(app, btn.packageName.c_str());
             }
         } else {
@@ -256,6 +294,14 @@ void UIManager::MoveScreen(uint32_t screenId, XrPosef newPose) {
 
 void UIManager::Update(float deltaTime) {
     // Logic to animate UI elements, handle drag-and-drop physics for floating screens, etc.
+    if (m_clickVisualTimer > 0.0f) {
+        m_clickVisualTimer -= deltaTime;
+        // Make it bright green for feedback
+        m_laserColor[0] = 0.0f; m_laserColor[1] = 1.0f; m_laserColor[2] = 0.0f; 
+    } else {
+        // Default Red
+        m_laserColor[0] = 1.0f; m_laserColor[1] = 0.0f; m_laserColor[2] = 0.0f; 
+    }
 }
 
 void* UIManager::GetCompositionLayersStub() {
@@ -303,18 +349,27 @@ void UIManager::PositionMenuInFrontOf(XrPosef headPose) {
     right[1] = 0.0f;
     right[2] = forward[0];
 
-    // Place menu 2.5 meters directly in front of the user's head, slightly lower at height (chest level)
-    float centerX = headPose.position.x + forward[0] * 2.5f;
-    float centerY = headPose.position.y - 0.20f; // 20cm below eye level
-    float centerZ = headPose.position.z + forward[2] * 2.5f;
+    // Place menu 0.6 meters directly in front of the user's head, slightly lower at height (chest level)
+    float centerX = headPose.position.x + forward[0] * 0.6f;
+    float centerY = headPose.position.y - 0.10f; // 10cm below eye level
+    float centerZ = headPose.position.z + forward[2] * 0.6f;
+
+    // Calculate a purely horizontal yaw quaternion so the menu is always upright
+    // We use -forward[0] because a positive Y rotation rotates -Z to -X.
+    float yaw = std::atan2(-forward[0], -forward[2]);
+    XrQuaternionf uprightOrientation;
+    uprightOrientation.x = 0.0f;
+    uprightOrientation.y = std::sin(yaw * 0.5f);
+    uprightOrientation.z = 0.0f;
+    uprightOrientation.w = std::cos(yaw * 0.5f);
 
     for (size_t i = 0; i < m_menuButtons.size(); ++i) {
-        float offset = -0.75f + i * 0.50f; // wider horizontal spacing spread for far distance
+        float offset = -0.225f + i * 0.15f; // EXACT SAME SPACING as original: 15cm spacing
         m_menuButtons[i].pose.position.x = centerX + right[0] * offset;
         m_menuButtons[i].pose.position.y = centerY;
         m_menuButtons[i].pose.position.z = centerZ + right[2] * offset;
         
-        // Face the user
-        m_menuButtons[i].pose.orientation = headPose.orientation;
+        // Face the user upright
+        m_menuButtons[i].pose.orientation = uprightOrientation;
     }
 }

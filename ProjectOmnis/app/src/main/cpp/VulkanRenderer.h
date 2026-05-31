@@ -46,6 +46,7 @@ public:
 
     // Menus
     void RenderMenuButtons(const std::vector<MenuButton>& buttons, const struct Matrix4x4& viewProj);
+    void RenderLaser(const float origin[3], const float dir[3], const float color[4], const struct Matrix4x4& viewProj);
 
     XrGraphicsBindingVulkanKHR GetVulkanBinding() const;
     void SetupCommandBuffers();
@@ -74,6 +75,9 @@ private:
     
     VkBuffer m_vertexBuffer = VK_NULL_HANDLE;
     VkDeviceMemory m_vertexBufferMemory = VK_NULL_HANDLE;
+
+    VkBuffer m_redVertexBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory m_redVertexBufferMemory = VK_NULL_HANDLE;
 
     VkImageView m_currentImageView = VK_NULL_HANDLE;
     VkFramebuffer m_currentFramebuffer = VK_NULL_HANDLE;

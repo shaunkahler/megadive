@@ -7,9 +7,11 @@ layout(location = 0) out vec3 fragColor;
 
 layout(push_constant) uniform PushConstants {
     mat4 mvp;
+    vec4 color;
 } push;
 
 void main() {
     gl_Position = push.mvp * vec4(inPosition, 1.0);
-    fragColor = inColor;
+    // Multiply vertex color by the push constant color
+    fragColor = inColor * push.color.rgb;
 }

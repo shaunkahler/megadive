@@ -26,9 +26,9 @@ void OpenXRContext::Initialize() {
     // Initialize UI Manager with the reference spaces
     m_uiManager.Initialize(m_headSpace, m_worldSpace);
     
-    // Spawn a test floating screen to act as the integrated Linux Desktop
-    XrPosef desktopPose = { {0,0,0,1}, {0.0f, 1.5f, -2.0f} }; // 1.5m high, 2m away
-    m_uiManager.SpawnFloatingScreen(desktopPose, 1.2f, 0.8f);
+      // Spawn a test floating screen to act as the integrated Linux Desktop
+      XrPosef desktopPose = { {0,0,0,1}, {0.0f, 0.0f, -2.0f} }; // Eye level, 2m away
+      m_uiManager.SpawnFloatingScreen(desktopPose, 1.2f, 0.8f);
 }
 
 void OpenXRContext::CreateInstance() {
@@ -243,6 +243,9 @@ void OpenXRContext::ProcessFrame() {
             if (m_uiManager.IsMenuVisible()) {
                 m_vulkan.RenderMenuButtons(m_uiManager.GetMenuButtons(), viewProj);
             }
+            if (m_uiManager.IsPointing()) {
+                m_vulkan.RenderLaser(m_uiManager.GetPointerOrigin(), m_uiManager.GetPointerDir(), m_uiManager.GetLaserColor(), viewProj);
+            }
             
             m_vulkan.EndRender();
 
@@ -267,7 +270,7 @@ void OpenXRContext::ProcessFrame() {
         // Update UI animations/logic
         m_uiManager.Update(0.011f);
         
-        m_uiManager.UpdateMenu(0.011f, m_leftHandJoints, m_leftHandActive, m_rightHandJoints, m_rightHandActive, m_app);
+        m_uiManager.UpdateMenu(0.011f, m_leftHandJoints, m_leftHandActive, m_rightHandJoints, m_rightHandActive, m_app, m_views[0].pose);
 
         m_vulkan.RenderFrame(0.011f, fadeAlpha);
 // RenderHands moved inside view loop

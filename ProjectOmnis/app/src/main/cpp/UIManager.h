@@ -45,7 +45,7 @@ public:
     void UpdateMenu(float deltaTime, 
                     const XrHandJointLocationEXT* leftJoints, bool leftActive, 
                     const XrHandJointLocationEXT* rightJoints, bool rightActive, 
-                    void* androidApp);
+                    void* androidApp, XrPosef headPose);
     void PositionMenuInFrontOf(XrPosef headPose);
 
     // Get the prepared composition layers to submit to xrEndFrame
@@ -54,6 +54,10 @@ public:
 
     const std::vector<MenuButton>& GetMenuButtons() const { return m_menuButtons; }
     bool IsMenuVisible() const { return m_menuVisible; }
+    bool IsPointing() const { return m_isPointing; }
+    const float* GetPointerOrigin() const { return m_pointerOrigin; }
+    const float* GetPointerDir() const { return m_pointerDir; }
+    const float* GetLaserColor() const { return m_laserColor; }
 
 private:
     XrSpace m_headSpace = XR_NULL_HANDLE;
@@ -74,6 +78,19 @@ private:
     bool m_wristTouchedLastFrame = false;
     bool m_rightHandPinchingLastFrame = false;
     bool m_leftHandPinchingLastFrame = false;
+    bool m_menuPositionInitialized = false;
+
+    bool m_isPointing = false;
+    float m_pointerOrigin[3] = {0.0f, 0.0f, 0.0f};
+    float m_pointerDir[3] = {0.0f, 0.0f, -1.0f};
+
+    // Index Flex Click Gesture State
+    bool m_indexFlexed = false;
+    float m_indexFlexTimer = 0.0f;
+    
+    // Laser Visual Feedback
+    float m_clickVisualTimer = 0.0f;
+    float m_laserColor[4] = {1.0f, 0.0f, 0.0f, 1.0f};
 
     void CreateHUD();
     void InitializeLauncherMenu();

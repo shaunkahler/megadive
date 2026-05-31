@@ -2,6 +2,12 @@
 #include <stdexcept>
 #include <string>
 #include <cstring>
+
+struct PushConstantData {
+    Matrix4x4 mvp;
+    float color[4];
+};
+
 const uint32_t hand_vert[] = 
 #include "hand_vert.spv.h"
 ;
@@ -76,6 +82,8 @@ VulkanRenderer::~VulkanRenderer() {
         if (m_renderPass) vkDestroyRenderPass(m_vkDevice, m_renderPass, nullptr);
         if (m_vertexBuffer) vkDestroyBuffer(m_vkDevice, m_vertexBuffer, nullptr);
         if (m_vertexBufferMemory) vkFreeMemory(m_vkDevice, m_vertexBufferMemory, nullptr);
+        if (m_redVertexBuffer) vkDestroyBuffer(m_vkDevice, m_redVertexBuffer, nullptr);
+        if (m_redVertexBufferMemory) vkFreeMemory(m_vkDevice, m_redVertexBufferMemory, nullptr);
 
         vkDestroyDevice(m_vkDevice, nullptr);
     }
@@ -313,6 +321,24 @@ void VulkanRenderer::CreateVertexBuffer() {
     vkMapMemory(m_vkDevice, m_vertexBufferMemory, 0, bufferInfo.size, 0, &data);
     memcpy(data, cubeVertices, (size_t)bufferInfo.size);
     vkUnmapMemory(m_vkDevice, m_vertexBufferMemory);
+
+    // Create Red Vertex Buffer for Laser
+    VK_CHECK(vkCreateBuffer(m_vkDevice, &bufferInfo, nullptr, &m_redVertexBuffer));
+    vkGetBufferMemoryRequirements(m_vkDevice, m_redVertexBuffer, &memRequirements);
+    allocInfo.allocationSize = memRequirements.size;
+    VK_CHECK(vkAllocateMemory(m_vkDevice, &allocInfo, nullptr, &m_redVertexBufferMemory));
+    vkBindBufferMemory(m_vkDevice, m_redVertexBuffer, m_redVertexBufferMemory, 0);
+
+    vkMapMemory(m_vkDevice, m_redVertexBufferMemory, 0, bufferInfo.size, 0, &data);
+    Vertex redVertices[36];
+    memcpy(redVertices, cubeVertices, sizeof(cubeVertices));
+    for (int i = 0; i < 36; ++i) {
+        redVertices[i].color[0] = 1.0f; // R
+        redVertices[i].color[1] = 0.0f; // G
+        redVertices[i].color[2] = 0.0f; // B
+    }
+    memcpy(data, redVertices, sizeof(redVertices));
+    vkUnmapMemory(m_vkDevice, m_redVertexBufferMemory);
 }
 
 void VulkanRenderer::SetupRenderPass() {
@@ -424,7 +450,7 @@ void VulkanRenderer::BuildPipeline() {
     VkPushConstantRange pushConstant = {};
     pushConstant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
     pushConstant.offset = 0;
-    pushConstant.size = sizeof(Matrix4x4);
+    pushConstant.size = sizeof(PushConstantData);
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
     pipelineLayoutInfo.pushConstantRangeCount = 1;
@@ -576,7 +602,10 @@ void VulkanRenderer::RenderHands(const XrHandJointLocationEXT* leftJoints, bool 
                 Matrix4x4 model, mvp;
                 CreateBoneMatrix(&model, leftJoints[pIdx].pose.position, leftJoints[cIdx].pose.position, 0.008f);
                 Matrix4x4_Multiply(&mvp, &viewProj, &model);
-                vkCmdPushConstants(m_vkCommandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Matrix4x4), &mvp);
+                PushConstantData pcd;
+                pcd.mvp = mvp;
+                pcd.color[0] = 0.8f; pcd.color[1] = 0.8f; pcd.color[2] = 0.8f; pcd.color[3] = 1.0f;
+                vkCmdPushConstants(m_vkCommandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstantData), &pcd);
                 vkCmdDraw(m_vkCommandBuffer, 36, 1, 0, 0);
             }
         }
@@ -590,7 +619,10 @@ void VulkanRenderer::RenderHands(const XrHandJointLocationEXT* leftJoints, bool 
                 float scale[3] = {cubeSize, cubeSize, cubeSize};
                 CreateModelMatrix(&model, leftJoints[i].pose, scale);
                 Matrix4x4_Multiply(&mvp, &viewProj, &model);
-                vkCmdPushConstants(m_vkCommandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Matrix4x4), &mvp);
+                PushConstantData pcd;
+                pcd.mvp = mvp;
+                pcd.color[0] = 0.9f; pcd.color[1] = 0.9f; pcd.color[2] = 0.9f; pcd.color[3] = 1.0f;
+                vkCmdPushConstants(m_vkCommandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstantData), &pcd);
                 vkCmdDraw(m_vkCommandBuffer, 36, 1, 0, 0);
             }
         }
@@ -608,7 +640,10 @@ void VulkanRenderer::RenderHands(const XrHandJointLocationEXT* leftJoints, bool 
                 Matrix4x4 model, mvp;
                 CreateBoneMatrix(&model, rightJoints[pIdx].pose.position, rightJoints[cIdx].pose.position, 0.008f);
                 Matrix4x4_Multiply(&mvp, &viewProj, &model);
-                vkCmdPushConstants(m_vkCommandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Matrix4x4), &mvp);
+                PushConstantData pcd;
+                pcd.mvp = mvp;
+                pcd.color[0] = 0.8f; pcd.color[1] = 0.8f; pcd.color[2] = 0.8f; pcd.color[3] = 1.0f;
+                vkCmdPushConstants(m_vkCommandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstantData), &pcd);
                 vkCmdDraw(m_vkCommandBuffer, 36, 1, 0, 0);
             }
         }
@@ -622,11 +657,70 @@ void VulkanRenderer::RenderHands(const XrHandJointLocationEXT* leftJoints, bool 
                 float scale[3] = {cubeSize, cubeSize, cubeSize};
                 CreateModelMatrix(&model, rightJoints[i].pose, scale);
                 Matrix4x4_Multiply(&mvp, &viewProj, &model);
-                vkCmdPushConstants(m_vkCommandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Matrix4x4), &mvp);
+                PushConstantData pcd;
+                pcd.mvp = mvp;
+                pcd.color[0] = 0.9f; pcd.color[1] = 0.9f; pcd.color[2] = 0.9f; pcd.color[3] = 1.0f;
+                vkCmdPushConstants(m_vkCommandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstantData), &pcd);
                 vkCmdDraw(m_vkCommandBuffer, 36, 1, 0, 0);
             }
         }
     }
+}
+
+void VulkanRenderer::RenderLaser(const float origin[3], const float dir[3], const float color[4], const Matrix4x4& viewProj) {
+    if (m_pipeline == VK_NULL_HANDLE) return;
+
+    VkDeviceSize offsets[] = {0};
+    vkCmdBindVertexBuffers(m_vkCommandBuffer, 0, 1, &m_redVertexBuffer, offsets);
+
+    Matrix4x4 model, mvp;
+    
+    // Stretch cube to make a long laser. 10 meters long, 2mm thick.
+    float length = 10.0f;
+    float scale[3] = {0.002f, 0.002f, length};
+    
+    XrPosef pose;
+    pose.position.x = origin[0] + dir[0] * (length * 0.5f);
+    pose.position.y = origin[1] + dir[1] * (length * 0.5f);
+    pose.position.z = origin[2] + dir[2] * (length * 0.5f);
+    
+    // Create rotation quaternion from direction vector (z-axis pointing)
+    float d[3] = {dir[0], dir[1], dir[2]};
+    float up[3] = {0, 1, 0};
+    if (fabs(d[1]) > 0.99f) { up[0] = 1; up[1] = 0; }
+    
+    // Right = cross(up, d)
+    float r[3] = {
+        up[1]*d[2] - up[2]*d[1],
+        up[2]*d[0] - up[0]*d[2],
+        up[0]*d[1] - up[1]*d[0]
+    };
+    float rLen = sqrtf(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);
+    if (rLen > 0) { r[0]/=rLen; r[1]/=rLen; r[2]/=rLen; }
+    
+    // Real Up = cross(d, r)
+    float u[3] = {
+        d[1]*r[2] - d[2]*r[1],
+        d[2]*r[0] - d[0]*r[2],
+        d[0]*r[1] - d[1]*r[0]
+    };
+    
+    // CreateModelMatrix takes XrPosef which takes quaternion. Since we are creating custom matrix, we can bypass CreateModelMatrix and build it directly.
+    for(int i = 0; i < 16; ++i) model.m[i] = 0.0f;
+    model.m[0] = model.m[5] = model.m[10] = model.m[15] = 1.0f;
+    model.m[0] = r[0] * scale[0]; model.m[1] = r[1] * scale[0]; model.m[2] = r[2] * scale[0];
+    model.m[4] = u[0] * scale[1]; model.m[5] = u[1] * scale[1]; model.m[6] = u[2] * scale[1];
+    // Notice: our 'd' is forward.
+    model.m[8] = d[0] * scale[2]; model.m[9] = d[1] * scale[2]; model.m[10] = d[2] * scale[2];
+    model.m[12] = pose.position.x; model.m[13] = pose.position.y; model.m[14] = pose.position.z;
+
+    Matrix4x4_Multiply(&mvp, &viewProj, &model);
+    
+    PushConstantData pcd;
+    pcd.mvp = mvp;
+    pcd.color[0] = color[0]; pcd.color[1] = color[1]; pcd.color[2] = color[2]; pcd.color[3] = color[3];
+    vkCmdPushConstants(m_vkCommandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstantData), &pcd);
+    vkCmdDraw(m_vkCommandBuffer, 36, 1, 0, 0);
 }
 
 void VulkanRenderer::RenderMenuButtons(const std::vector<MenuButton>& buttons, const Matrix4x4& viewProj) {
@@ -649,7 +743,10 @@ void VulkanRenderer::RenderMenuButtons(const std::vector<MenuButton>& buttons, c
         CreateModelMatrix(&model, btn.pose, size);
         Matrix4x4_Multiply(&mvp, &viewProj, &model);
         
-        vkCmdPushConstants(m_vkCommandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Matrix4x4), &mvp);
+        PushConstantData pcd;
+        pcd.mvp = mvp;
+        pcd.color[0] = btn.color[0]; pcd.color[1] = btn.color[1]; pcd.color[2] = btn.color[2]; pcd.color[3] = 1.0f;
+        vkCmdPushConstants(m_vkCommandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstantData), &pcd);
         vkCmdDraw(m_vkCommandBuffer, 36, 1, 0, 0);
     }
 }
