@@ -3,6 +3,8 @@
 #include <vector>
 #include <jni.h>
 #include <android/log.h>
+#include "Math.h"
+#include "UIManager.h"
 
 #define XR_USE_PLATFORM_ANDROID
 #define XR_USE_GRAPHICS_API_VULKAN
@@ -36,9 +38,21 @@ public:
 
     void Initialize(XrInstance xrInstance, XrSystemId systemId);
     void RenderFrame(float deltaTime, float fadeAlpha);
+    
+    // Hands
+    void RenderHands(const XrHandJointLocationEXT* leftJoints, bool leftActive, 
+                     const XrHandJointLocationEXT* rightJoints, bool rightActive,
+                     const struct Matrix4x4& viewProj);
+
+    // Menus
+    void RenderMenuButtons(const std::vector<MenuButton>& buttons, const struct Matrix4x4& viewProj);
+
     XrGraphicsBindingVulkanKHR GetVulkanBinding() const;
     void SetupCommandBuffers();
     void ClearImage(VkImage image, VkClearColorValue color);
+
+    void BeginRender(VkImage image, uint32_t width, uint32_t height);
+    void EndRender();
 
 private:
     XrInstance m_xrInstance = XR_NULL_HANDLE;
@@ -54,8 +68,21 @@ private:
     VkCommandPool m_vkCommandPool = VK_NULL_HANDLE;
     VkCommandBuffer m_vkCommandBuffer = VK_NULL_HANDLE;
 
+    VkRenderPass m_renderPass = VK_NULL_HANDLE;
+    VkPipelineLayout m_pipelineLayout = VK_NULL_HANDLE;
+    VkPipeline m_pipeline = VK_NULL_HANDLE;
+    
+    VkBuffer m_vertexBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory m_vertexBufferMemory = VK_NULL_HANDLE;
+
+    VkImageView m_currentImageView = VK_NULL_HANDLE;
+    VkFramebuffer m_currentFramebuffer = VK_NULL_HANDLE;
+
     void CreateInstance();
     void CreateDevice();
     void SetupRenderPass();
+    void BuildPipeline();
+    void CreateVertexBuffer();
     void BuildFadeInPipeline();
+    uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 };

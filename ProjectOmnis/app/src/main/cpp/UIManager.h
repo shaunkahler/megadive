@@ -19,6 +19,16 @@ struct VirtualScreen {
     bool isVisible;
 };
 
+struct MenuButton {
+    std::string label;
+    std::string packageName;
+    XrPosef pose;
+    float size[3]; // width, height, depth
+    float color[3];
+    bool hovered;
+    bool triggered;
+};
+
 class UIManager {
 public:
     UIManager();
@@ -32,10 +42,18 @@ public:
     
     // Updates the HUD and prepares the OpenXR layers for this frame
     void Update(float deltaTime);
+    void UpdateMenu(float deltaTime, 
+                    const XrHandJointLocationEXT* leftJoints, bool leftActive, 
+                    const XrHandJointLocationEXT* rightJoints, bool rightActive, 
+                    void* androidApp);
+    void PositionMenuInFrontOf(XrPosef headPose);
 
     // Get the prepared composition layers to submit to xrEndFrame
     // std::vector<XrCompositionLayerBaseHeader*> GetCompositionLayers();
     void* GetCompositionLayersStub(); // Stubbed return for compilation without OpenXR
+
+    const std::vector<MenuButton>& GetMenuButtons() const { return m_menuButtons; }
+    bool IsMenuVisible() const { return m_menuVisible; }
 
 private:
     XrSpace m_headSpace = XR_NULL_HANDLE;
@@ -50,5 +68,13 @@ private:
     std::vector<VirtualScreen> m_virtualScreens;
     uint32_t m_nextScreenId = 1;
 
+    // Menu Launcher items
+    std::vector<MenuButton> m_menuButtons;
+    bool m_menuVisible = true;
+    bool m_wristTouchedLastFrame = false;
+    bool m_rightHandPinchingLastFrame = false;
+    bool m_leftHandPinchingLastFrame = false;
+
     void CreateHUD();
+    void InitializeLauncherMenu();
 };

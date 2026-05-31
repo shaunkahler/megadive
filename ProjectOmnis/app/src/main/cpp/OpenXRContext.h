@@ -17,10 +17,12 @@
 #endif
 
 // Debug Macro for OpenXR
+#ifndef XR_CHECK
 #define XR_CHECK(res) \
-    if (XR_FAILED(res)) { \
-        LOGE("OpenXR Error: %d at %s:%d", res, __FILE__, __LINE__); \
+    if ((res) != XR_SUCCESS) { \
+        LOGE("OpenXR Error: %d", res); \
     }
+#endif
 
 class OpenXRContext {
 public:
@@ -56,6 +58,21 @@ private:
     void SetupSpaces();
     void SetupSwapchains();
     void PollEvents();
+
+    // Hand Tracking
+    XrHandTrackerEXT m_handTrackerLeft = XR_NULL_HANDLE;
+    XrHandTrackerEXT m_handTrackerRight = XR_NULL_HANDLE;
+    PFN_xrCreateHandTrackerEXT pfnCreateHandTrackerEXT = nullptr;
+    PFN_xrDestroyHandTrackerEXT pfnDestroyHandTrackerEXT = nullptr;
+    PFN_xrLocateHandJointsEXT pfnLocateHandJointsEXT = nullptr;
+    XrHandJointLocationEXT m_leftHandJoints[XR_HAND_JOINT_COUNT_EXT];
+    XrHandJointLocationEXT m_rightHandJoints[XR_HAND_JOINT_COUNT_EXT];
+    bool m_leftHandActive = false;
+    bool m_rightHandActive = false;
+    bool m_menuPositioned = false;
+
+    void InitializeHandTracking();
+    void LocateHands(XrTime predictedDisplayTime);
 
     struct SwapchainInfo {
         XrSwapchain swapchain;

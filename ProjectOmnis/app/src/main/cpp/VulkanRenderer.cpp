@@ -2,6 +2,62 @@
 #include <stdexcept>
 #include <string>
 #include <cstring>
+const uint32_t hand_vert[] = 
+#include "hand_vert.spv.h"
+;
+
+const uint32_t hand_frag[] = 
+#include "hand_frag.spv.h"
+;
+
+struct Vertex {
+    float pos[3];
+    float color[3];
+};
+
+const Vertex cubeVertices[] = {
+    {{-0.5f, -0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}},
+    {{ 0.5f, -0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}},
+    {{ 0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}},
+    {{ 0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}},
+    {{-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}},
+    {{-0.5f, -0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}},
+
+    {{-0.5f, -0.5f,  0.5f}, {0.9f, 0.9f, 0.9f}},
+    {{ 0.5f, -0.5f,  0.5f}, {0.9f, 0.9f, 0.9f}},
+    {{ 0.5f,  0.5f,  0.5f}, {0.9f, 0.9f, 0.9f}},
+    {{ 0.5f,  0.5f,  0.5f}, {0.9f, 0.9f, 0.9f}},
+    {{-0.5f,  0.5f,  0.5f}, {0.9f, 0.9f, 0.9f}},
+    {{-0.5f, -0.5f,  0.5f}, {0.9f, 0.9f, 0.9f}},
+
+    {{-0.5f,  0.5f,  0.5f}, {0.8f, 0.8f, 0.8f}},
+    {{-0.5f,  0.5f, -0.5f}, {0.8f, 0.8f, 0.8f}},
+    {{-0.5f, -0.5f, -0.5f}, {0.8f, 0.8f, 0.8f}},
+    {{-0.5f, -0.5f, -0.5f}, {0.8f, 0.8f, 0.8f}},
+    {{-0.5f, -0.5f,  0.5f}, {0.8f, 0.8f, 0.8f}},
+    {{-0.5f,  0.5f,  0.5f}, {0.8f, 0.8f, 0.8f}},
+
+    {{ 0.5f,  0.5f,  0.5f}, {0.8f, 0.8f, 0.8f}},
+    {{ 0.5f,  0.5f, -0.5f}, {0.8f, 0.8f, 0.8f}},
+    {{ 0.5f, -0.5f, -0.5f}, {0.8f, 0.8f, 0.8f}},
+    {{ 0.5f, -0.5f, -0.5f}, {0.8f, 0.8f, 0.8f}},
+    {{ 0.5f, -0.5f,  0.5f}, {0.8f, 0.8f, 0.8f}},
+    {{ 0.5f,  0.5f,  0.5f}, {0.8f, 0.8f, 0.8f}},
+
+    {{-0.5f, -0.5f, -0.5f}, {0.7f, 0.7f, 0.7f}},
+    {{ 0.5f, -0.5f, -0.5f}, {0.7f, 0.7f, 0.7f}},
+    {{ 0.5f, -0.5f,  0.5f}, {0.7f, 0.7f, 0.7f}},
+    {{ 0.5f, -0.5f,  0.5f}, {0.7f, 0.7f, 0.7f}},
+    {{-0.5f, -0.5f,  0.5f}, {0.7f, 0.7f, 0.7f}},
+    {{-0.5f, -0.5f, -0.5f}, {0.7f, 0.7f, 0.7f}},
+
+    {{-0.5f,  0.5f, -0.5f}, {0.7f, 0.7f, 0.7f}},
+    {{ 0.5f,  0.5f, -0.5f}, {0.7f, 0.7f, 0.7f}},
+    {{ 0.5f,  0.5f,  0.5f}, {0.7f, 0.7f, 0.7f}},
+    {{ 0.5f,  0.5f,  0.5f}, {0.7f, 0.7f, 0.7f}},
+    {{-0.5f,  0.5f,  0.5f}, {0.7f, 0.7f, 0.7f}},
+    {{-0.5f,  0.5f, -0.5f}, {0.7f, 0.7f, 0.7f}}
+};
 
 // OpenXR Extension function pointers for XR_KHR_vulkan_enable2
 PFN_xrGetVulkanGraphicsRequirements2KHR pfnGetVulkanGraphicsRequirements2KHR = nullptr;
@@ -13,7 +69,14 @@ VulkanRenderer::VulkanRenderer() {}
 
 VulkanRenderer::~VulkanRenderer() {
     LOGI("VulkanRenderer Destroyed");
+
     if (m_vkDevice != VK_NULL_HANDLE) {
+        if (m_pipeline) vkDestroyPipeline(m_vkDevice, m_pipeline, nullptr);
+        if (m_pipelineLayout) vkDestroyPipelineLayout(m_vkDevice, m_pipelineLayout, nullptr);
+        if (m_renderPass) vkDestroyRenderPass(m_vkDevice, m_renderPass, nullptr);
+        if (m_vertexBuffer) vkDestroyBuffer(m_vkDevice, m_vertexBuffer, nullptr);
+        if (m_vertexBufferMemory) vkFreeMemory(m_vkDevice, m_vertexBufferMemory, nullptr);
+
         vkDestroyDevice(m_vkDevice, nullptr);
     }
     if (m_vkInstance != VK_NULL_HANDLE) {
@@ -45,6 +108,8 @@ void VulkanRenderer::Initialize(XrInstance xrInstance, XrSystemId systemId) {
     CreateDevice();
     SetupCommandBuffers();
     SetupRenderPass();
+    CreateVertexBuffer();
+    BuildPipeline();
     BuildFadeInPipeline();
 }
 
@@ -214,11 +279,245 @@ XrGraphicsBindingVulkanKHR VulkanRenderer::GetVulkanBinding() const {
     return binding;
 }
 
+
+uint32_t VulkanRenderer::FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+    VkPhysicalDeviceMemoryProperties memProperties;
+    vkGetPhysicalDeviceMemoryProperties(m_vkPhysicalDevice, &memProperties);
+    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+        if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+            return i;
+        }
+    }
+    return 0;
+}
+
+void VulkanRenderer::CreateVertexBuffer() {
+    VkBufferCreateInfo bufferInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+    bufferInfo.size = sizeof(cubeVertices);
+    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    VK_CHECK(vkCreateBuffer(m_vkDevice, &bufferInfo, nullptr, &m_vertexBuffer));
+
+    VkMemoryRequirements memRequirements;
+    vkGetBufferMemoryRequirements(m_vkDevice, m_vertexBuffer, &memRequirements);
+
+    VkMemoryAllocateInfo allocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+    allocInfo.allocationSize = memRequirements.size;
+    allocInfo.memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    VK_CHECK(vkAllocateMemory(m_vkDevice, &allocInfo, nullptr, &m_vertexBufferMemory));
+    vkBindBufferMemory(m_vkDevice, m_vertexBuffer, m_vertexBufferMemory, 0);
+
+    void* data;
+    vkMapMemory(m_vkDevice, m_vertexBufferMemory, 0, bufferInfo.size, 0, &data);
+    memcpy(data, cubeVertices, (size_t)bufferInfo.size);
+    vkUnmapMemory(m_vkDevice, m_vertexBufferMemory);
+}
+
 void VulkanRenderer::SetupRenderPass() {
-    LOGI("Vulkan Subpasses Configured for TBDR");
+    VkAttachmentDescription colorAttachment = {};
+    colorAttachment.format = VK_FORMAT_R8G8B8A8_SRGB;
+    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD; // because we cleared it previously
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference colorAttachmentRef = {};
+    colorAttachmentRef.attachment = 0;
+    colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription subpass = {};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 1;
+    subpass.pColorAttachments = &colorAttachmentRef;
+
+    VkRenderPassCreateInfo renderPassInfo = {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
+    renderPassInfo.attachmentCount = 1;
+    renderPassInfo.pAttachments = &colorAttachment;
+    renderPassInfo.subpassCount = 1;
+    renderPassInfo.pSubpasses = &subpass;
+
+    VK_CHECK(vkCreateRenderPass(m_vkDevice, &renderPassInfo, nullptr, &m_renderPass));
+}
+
+void VulkanRenderer::BuildPipeline() {
+    VkShaderModuleCreateInfo vertInfo = {VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+    vertInfo.codeSize = sizeof(hand_vert);
+    vertInfo.pCode = hand_vert;
+    VkShaderModule vertShader;
+    vkCreateShaderModule(m_vkDevice, &vertInfo, nullptr, &vertShader);
+
+    VkShaderModuleCreateInfo fragInfo = {VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+    fragInfo.codeSize = sizeof(hand_frag);
+    fragInfo.pCode = hand_frag;
+    VkShaderModule fragShader;
+    vkCreateShaderModule(m_vkDevice, &fragInfo, nullptr, &fragShader);
+
+    VkPipelineShaderStageCreateInfo vertStage = {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+    vertStage.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    vertStage.module = vertShader;
+    vertStage.pName = "main";
+
+    VkPipelineShaderStageCreateInfo fragStage = {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+    fragStage.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    fragStage.module = fragShader;
+    fragStage.pName = "main";
+
+    VkPipelineShaderStageCreateInfo shaderStages[] = {vertStage, fragStage};
+
+    VkVertexInputBindingDescription bindingDesc = {};
+    bindingDesc.binding = 0;
+    bindingDesc.stride = sizeof(Vertex);
+    bindingDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    VkVertexInputAttributeDescription attrDesc[2] = {};
+    attrDesc[0].binding = 0;
+    attrDesc[0].location = 0;
+    attrDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+    attrDesc[0].offset = offsetof(Vertex, pos);
+    
+    attrDesc[1].binding = 0;
+    attrDesc[1].location = 1;
+    attrDesc[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+    attrDesc[1].offset = offsetof(Vertex, color);
+
+    VkPipelineVertexInputStateCreateInfo vertexInputInfo = {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
+    vertexInputInfo.vertexBindingDescriptionCount = 1;
+    vertexInputInfo.pVertexBindingDescriptions = &bindingDesc;
+    vertexInputInfo.vertexAttributeDescriptionCount = 2;
+    vertexInputInfo.pVertexAttributeDescriptions = attrDesc;
+
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly = {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
+    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    inputAssembly.primitiveRestartEnable = VK_FALSE;
+
+    VkPipelineViewportStateCreateInfo viewportState = {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO};
+    viewportState.viewportCount = 1;
+    viewportState.scissorCount = 1;
+
+    VkPipelineRasterizationStateCreateInfo rasterizer = {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};
+    rasterizer.depthClampEnable = VK_FALSE;
+    rasterizer.rasterizerDiscardEnable = VK_FALSE;
+    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterizer.lineWidth = 1.0f;
+    rasterizer.cullMode = VK_CULL_MODE_NONE;
+    rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    rasterizer.depthBiasEnable = VK_FALSE;
+
+    VkPipelineMultisampleStateCreateInfo multisampling = {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
+    multisampling.sampleShadingEnable = VK_FALSE;
+    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
+    colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    colorBlendAttachment.blendEnable = VK_FALSE;
+
+    VkPipelineColorBlendStateCreateInfo colorBlending = {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
+    colorBlending.logicOpEnable = VK_FALSE;
+    colorBlending.attachmentCount = 1;
+    colorBlending.pAttachments = &colorBlendAttachment;
+
+    VkPushConstantRange pushConstant = {};
+    pushConstant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    pushConstant.offset = 0;
+    pushConstant.size = sizeof(Matrix4x4);
+
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    pipelineLayoutInfo.pPushConstantRanges = &pushConstant;
+
+    VK_CHECK(vkCreatePipelineLayout(m_vkDevice, &pipelineLayoutInfo, nullptr, &m_pipelineLayout));
+
+    VkDynamicState dynamicStates[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+    VkPipelineDynamicStateCreateInfo dynamicStateInfo = {VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO};
+    dynamicStateInfo.dynamicStateCount = 2;
+    dynamicStateInfo.pDynamicStates = dynamicStates;
+
+    VkGraphicsPipelineCreateInfo pipelineInfo = {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};
+    pipelineInfo.stageCount = 2;
+    pipelineInfo.pStages = shaderStages;
+    pipelineInfo.pVertexInputState = &vertexInputInfo;
+    pipelineInfo.pInputAssemblyState = &inputAssembly;
+    pipelineInfo.pViewportState = &viewportState;
+    pipelineInfo.pRasterizationState = &rasterizer;
+    pipelineInfo.pMultisampleState = &multisampling;
+    pipelineInfo.pColorBlendState = &colorBlending;
+    pipelineInfo.pDynamicState = &dynamicStateInfo;
+    pipelineInfo.layout = m_pipelineLayout;
+    pipelineInfo.renderPass = m_renderPass;
+    pipelineInfo.subpass = 0;
+
+    VK_CHECK(vkCreateGraphicsPipelines(m_vkDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_pipeline));
+
+    vkDestroyShaderModule(m_vkDevice, vertShader, nullptr);
+    vkDestroyShaderModule(m_vkDevice, fragShader, nullptr);
+}
+
+void VulkanRenderer::BeginRender(VkImage image, uint32_t width, uint32_t height) {
+    VkCommandBufferBeginInfo beginInfo = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(m_vkCommandBuffer, &beginInfo);
+    
+    // Create ImageView and Framebuffer
+    VkImageViewCreateInfo viewInfo = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+    viewInfo.image = image;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    viewInfo.subresourceRange.baseMipLevel = 0;
+    viewInfo.subresourceRange.levelCount = 1;
+    viewInfo.subresourceRange.baseArrayLayer = 0;
+    viewInfo.subresourceRange.layerCount = 1;
+    vkCreateImageView(m_vkDevice, &viewInfo, nullptr, &m_currentImageView);
+
+    VkFramebufferCreateInfo fbInfo = {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
+    fbInfo.renderPass = m_renderPass;
+    fbInfo.attachmentCount = 1;
+    fbInfo.pAttachments = &m_currentImageView;
+    fbInfo.width = width;
+    fbInfo.height = height;
+    fbInfo.layers = 1;
+    vkCreateFramebuffer(m_vkDevice, &fbInfo, nullptr, &m_currentFramebuffer);
+
+    VkRenderPassBeginInfo renderPassInfo = {VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
+    renderPassInfo.renderPass = m_renderPass;
+    renderPassInfo.framebuffer = m_currentFramebuffer;
+    renderPassInfo.renderArea.offset = {0, 0};
+    renderPassInfo.renderArea.extent = {width, height};
+
+    vkCmdBeginRenderPass(m_vkCommandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+    
+    vkCmdBindPipeline(m_vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
+    
+    VkViewport viewport = {0.0f, 0.0f, (float)width, (float)height, 0.0f, 1.0f};
+    vkCmdSetViewport(m_vkCommandBuffer, 0, 1, &viewport);
+    
+    VkRect2D scissor = {{0, 0}, {width, height}};
+    vkCmdSetScissor(m_vkCommandBuffer, 0, 1, &scissor);
+}
+
+void VulkanRenderer::EndRender() {
+    vkCmdEndRenderPass(m_vkCommandBuffer);
+    vkEndCommandBuffer(m_vkCommandBuffer);
+
+    VkSubmitInfo submitInfo = {VK_STRUCTURE_TYPE_SUBMIT_INFO};
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &m_vkCommandBuffer;
+    vkQueueSubmit(m_vkQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(m_vkQueue);
+    
+    vkDestroyFramebuffer(m_vkDevice, m_currentFramebuffer, nullptr);
+    vkDestroyImageView(m_vkDevice, m_currentImageView, nullptr);
+    m_currentFramebuffer = VK_NULL_HANDLE;
+    m_currentImageView = VK_NULL_HANDLE;
 }
 
 void VulkanRenderer::BuildFadeInPipeline() {
+
     LOGI("Fade-In Alpha Pipeline Built");
 }
 
@@ -226,5 +525,131 @@ void VulkanRenderer::RenderFrame(float deltaTime, float fadeAlpha) {
     // Phase 2 rendering logic
     if (fadeAlpha > 0.01f) {
         // Implementation for fade quad goes here
+    }
+}
+
+struct HandBone {
+    int parent;
+    int child;
+};
+
+const HandBone HAND_BONES[] = {
+    {0, 1}, // Wrist to Palm
+    
+    // Thumb
+    {1, 2}, {2, 3}, {3, 4}, {4, 5},
+    
+    // Index
+    {1, 6}, {6, 7}, {7, 8}, {8, 9}, {9, 10},
+    
+    // Middle
+    {1, 11}, {11, 12}, {12, 13}, {13, 14}, {14, 15},
+    
+    // Ring
+    {1, 16}, {16, 17}, {17, 18}, {18, 19}, {19, 20},
+    
+    // Pinky
+    {1, 21}, {21, 22}, {22, 23}, {23, 24}, {24, 25},
+    
+    // Knuckle lines
+    {7, 12}, {12, 17}, {17, 22}
+};
+const int HAND_BONE_COUNT = sizeof(HAND_BONES) / sizeof(HAND_BONES[0]);
+
+void VulkanRenderer::RenderHands(const XrHandJointLocationEXT* leftJoints, bool leftActive, 
+                                 const XrHandJointLocationEXT* rightJoints, bool rightActive,
+                                 const Matrix4x4& viewProj) {
+    if (m_pipeline == VK_NULL_HANDLE) return;
+
+    VkDeviceSize offsets[] = {0};
+    vkCmdBindVertexBuffers(m_vkCommandBuffer, 0, 1, &m_vertexBuffer, offsets);
+
+    // Left Hand
+    if (leftActive && leftJoints) {
+        // Draw bones
+        for (int i = 0; i < HAND_BONE_COUNT; ++i) {
+            int pIdx = HAND_BONES[i].parent;
+            int cIdx = HAND_BONES[i].child;
+            if ((leftJoints[pIdx].locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0 &&
+                (leftJoints[cIdx].locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0) {
+                
+                Matrix4x4 model, mvp;
+                CreateBoneMatrix(&model, leftJoints[pIdx].pose.position, leftJoints[cIdx].pose.position, 0.008f);
+                Matrix4x4_Multiply(&mvp, &viewProj, &model);
+                vkCmdPushConstants(m_vkCommandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Matrix4x4), &mvp);
+                vkCmdDraw(m_vkCommandBuffer, 36, 1, 0, 0);
+            }
+        }
+        
+        // Draw joints
+        for (int i = 0; i < XR_HAND_JOINT_COUNT_EXT; ++i) {
+            if ((leftJoints[i].locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0) {
+                Matrix4x4 model, mvp;
+                float cubeSize = leftJoints[i].radius * 2.0f; // Joint sphere fallback size (scaled by OpenXR reported radius)
+                if (cubeSize < 0.001f) cubeSize = 0.015f; 
+                float scale[3] = {cubeSize, cubeSize, cubeSize};
+                CreateModelMatrix(&model, leftJoints[i].pose, scale);
+                Matrix4x4_Multiply(&mvp, &viewProj, &model);
+                vkCmdPushConstants(m_vkCommandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Matrix4x4), &mvp);
+                vkCmdDraw(m_vkCommandBuffer, 36, 1, 0, 0);
+            }
+        }
+    }
+    
+    // Right Hand
+    if (rightActive && rightJoints) {
+        // Draw bones
+        for (int i = 0; i < HAND_BONE_COUNT; ++i) {
+            int pIdx = HAND_BONES[i].parent;
+            int cIdx = HAND_BONES[i].child;
+            if ((rightJoints[pIdx].locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0 &&
+                (rightJoints[cIdx].locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0) {
+                
+                Matrix4x4 model, mvp;
+                CreateBoneMatrix(&model, rightJoints[pIdx].pose.position, rightJoints[cIdx].pose.position, 0.008f);
+                Matrix4x4_Multiply(&mvp, &viewProj, &model);
+                vkCmdPushConstants(m_vkCommandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Matrix4x4), &mvp);
+                vkCmdDraw(m_vkCommandBuffer, 36, 1, 0, 0);
+            }
+        }
+        
+        // Draw joints
+        for (int i = 0; i < XR_HAND_JOINT_COUNT_EXT; ++i) {
+            if ((rightJoints[i].locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT) != 0) {
+                Matrix4x4 model, mvp;
+                float cubeSize = rightJoints[i].radius * 2.0f;
+                if (cubeSize < 0.001f) cubeSize = 0.015f;
+                float scale[3] = {cubeSize, cubeSize, cubeSize};
+                CreateModelMatrix(&model, rightJoints[i].pose, scale);
+                Matrix4x4_Multiply(&mvp, &viewProj, &model);
+                vkCmdPushConstants(m_vkCommandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Matrix4x4), &mvp);
+                vkCmdDraw(m_vkCommandBuffer, 36, 1, 0, 0);
+            }
+        }
+    }
+}
+
+void VulkanRenderer::RenderMenuButtons(const std::vector<MenuButton>& buttons, const Matrix4x4& viewProj) {
+    if (m_pipeline == VK_NULL_HANDLE) return;
+
+    VkDeviceSize offsets[] = {0};
+    vkCmdBindVertexBuffers(m_vkCommandBuffer, 0, 1, &m_vertexBuffer, offsets);
+
+    for (const auto& btn : buttons) {
+        Matrix4x4 model, mvp;
+        
+        float size[3] = { btn.size[0], btn.size[1], btn.size[2] };
+        if (btn.hovered) {
+            // Hovered buttons look larger (Z scales for popout depth)
+            size[0] *= 1.15f;
+            size[1] *= 1.15f;
+            size[2] *= 2.0f;
+        }
+
+        CreateModelMatrix(&model, btn.pose, size);
+        Matrix4x4_Multiply(&mvp, &viewProj, &model);
+        
+        vkCmdPushConstants(m_vkCommandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Matrix4x4), &mvp);
+        vkCmdDraw(m_vkCommandBuffer, 36, 1, 0, 0);
     }
 }

@@ -1,4 +1,5 @@
 #include "OpenXRContext.h"
+#include "Math.h"
 #include <cmath>
 #include <cstring>
 #include <vector>
@@ -19,6 +20,7 @@ void OpenXRContext::Initialize() {
     
     CreateSession();
     SetupSpaces();
+    InitializeHandTracking();
     SetupSwapchains();
     
     // Initialize UI Manager with the reference spaces
@@ -63,9 +65,10 @@ void OpenXRContext::CreateInstance() {
     // We must request the Android platform and Vulkan extensions
     const char* extensions[] = {
         "XR_KHR_android_create_instance",
-        "XR_KHR_vulkan_enable2"
+        "XR_KHR_vulkan_enable2",
+        XR_EXT_HAND_TRACKING_EXTENSION_NAME
     };
-    createInfo.enabledExtensionCount = 2;
+    createInfo.enabledExtensionCount = 3;
     createInfo.enabledExtensionNames = extensions;
     
     LOGI("Requesting OpenXR Extensions:");
@@ -204,6 +207,8 @@ void OpenXRContext::ProcessFrame() {
         float fadeAlpha = 1.0f - (elapsedSeconds / m_fadeDurationSeconds);
         if (fadeAlpha < 0.0f) fadeAlpha = 0.0f;
 
+        LocateHands(frameState.predictedDisplayTime);
+
         // Locate views
         XrViewLocateInfo viewLocateInfo = {XR_TYPE_VIEW_LOCATE_INFO};
         viewLocateInfo.viewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
@@ -227,6 +232,20 @@ void OpenXRContext::ProcessFrame() {
             VkClearColorValue color = (i == 0) ? VkClearColorValue{{0.0f, 0.4f, 1.0f, 1.0f}} : VkClearColorValue{{0.5f, 0.0f, 0.8f, 1.0f}};
             m_vulkan.ClearImage(m_swapchains[i].images[imageIndex].image, color);
 
+            m_vulkan.BeginRender(m_swapchains[i].images[imageIndex].image, m_swapchains[i].width, m_swapchains[i].height);
+            
+            Matrix4x4 view, proj, viewProj;
+            CreateViewMatrix(&view, m_views[i].pose);
+            CreateProjectionMatrix(&proj, m_views[i].fov, 0.05f, 100.0f);
+            Matrix4x4_Multiply(&viewProj, &proj, &view);
+            
+            m_vulkan.RenderHands(m_leftHandJoints, m_leftHandActive, m_rightHandJoints, m_rightHandActive, viewProj);
+            if (m_uiManager.IsMenuVisible()) {
+                m_vulkan.RenderMenuButtons(m_uiManager.GetMenuButtons(), viewProj);
+            }
+            
+            m_vulkan.EndRender();
+
             XrSwapchainImageReleaseInfo releaseInfo = {XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};
             XR_CHECK(xrReleaseSwapchainImage(m_swapchains[i].swapchain, &releaseInfo));
 
@@ -247,7 +266,11 @@ void OpenXRContext::ProcessFrame() {
 
         // Update UI animations/logic
         m_uiManager.Update(0.011f);
+        
+        m_uiManager.UpdateMenu(0.011f, m_leftHandJoints, m_leftHandActive, m_rightHandJoints, m_rightHandActive, m_app);
+
         m_vulkan.RenderFrame(0.011f, fadeAlpha);
+// RenderHands moved inside view loop
         m_frameCount++;
     }
 
@@ -260,3 +283,56 @@ void OpenXRContext::ProcessFrame() {
     
     XR_CHECK(xrEndFrame(m_session, &frameEndInfo));
 }
+
+void OpenXRContext::InitializeHandTracking() {
+    LOGI("Initializing OpenXR Hand Tracking...");
+    
+    // Get function pointers
+    xrGetInstanceProcAddr(m_instance, "xrCreateHandTrackerEXT", (PFN_xrVoidFunction*)&pfnCreateHandTrackerEXT);
+    xrGetInstanceProcAddr(m_instance, "xrDestroyHandTrackerEXT", (PFN_xrVoidFunction*)&pfnDestroyHandTrackerEXT);
+    xrGetInstanceProcAddr(m_instance, "xrLocateHandJointsEXT", (PFN_xrVoidFunction*)&pfnLocateHandJointsEXT);
+
+    if (!pfnCreateHandTrackerEXT || !pfnLocateHandJointsEXT) {
+        LOGE("Hand tracking extensions not available!");
+        return;
+    }
+
+    XrHandTrackerCreateInfoEXT leftInfo = {XR_TYPE_HAND_TRACKER_CREATE_INFO_EXT};
+    leftInfo.hand = XR_HAND_LEFT_EXT;
+    leftInfo.handJointSet = XR_HAND_JOINT_SET_DEFAULT_EXT;
+    XR_CHECK(pfnCreateHandTrackerEXT(m_session, &leftInfo, &m_handTrackerLeft));
+
+    XrHandTrackerCreateInfoEXT rightInfo = {XR_TYPE_HAND_TRACKER_CREATE_INFO_EXT};
+    rightInfo.hand = XR_HAND_RIGHT_EXT;
+    rightInfo.handJointSet = XR_HAND_JOINT_SET_DEFAULT_EXT;
+    XR_CHECK(pfnCreateHandTrackerEXT(m_session, &rightInfo, &m_handTrackerRight));
+
+    LOGI("Hand trackers created successfully.");
+}
+
+void OpenXRContext::LocateHands(XrTime predictedDisplayTime) {
+    if (!pfnLocateHandJointsEXT) return;
+
+    XrHandJointsLocateInfoEXT locateInfo = {XR_TYPE_HAND_JOINTS_LOCATE_INFO_EXT};
+    locateInfo.baseSpace = m_worldSpace;
+    locateInfo.time = predictedDisplayTime;
+
+    // Left Hand
+    XrHandJointLocationsEXT leftLocations = {XR_TYPE_HAND_JOINT_LOCATIONS_EXT};
+    leftLocations.jointCount = XR_HAND_JOINT_COUNT_EXT;
+    leftLocations.jointLocations = m_leftHandJoints;
+    if (m_handTrackerLeft) {
+        pfnLocateHandJointsEXT(m_handTrackerLeft, &locateInfo, &leftLocations);
+        m_leftHandActive = leftLocations.isActive == XR_TRUE;
+    }
+
+    // Right Hand
+    XrHandJointLocationsEXT rightLocations = {XR_TYPE_HAND_JOINT_LOCATIONS_EXT};
+    rightLocations.jointCount = XR_HAND_JOINT_COUNT_EXT;
+    rightLocations.jointLocations = m_rightHandJoints;
+    if (m_handTrackerRight) {
+        pfnLocateHandJointsEXT(m_handTrackerRight, &locateInfo, &rightLocations);
+        m_rightHandActive = rightLocations.isActive == XR_TRUE;
+    }
+}
+
