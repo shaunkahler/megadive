@@ -16,7 +16,7 @@ void OpenXRContext::Initialize() {
     InitializeSystem();
     
     // Initialize Vulkan BEFORE OpenXR Session, as OpenXR needs the Vulkan instance
-    m_vulkan.Initialize(m_instance, m_systemId);
+    m_vulkan.Initialize(m_instance, m_systemId, m_app->activity->assetManager);
     
     CreateSession();
     SetupSpaces();

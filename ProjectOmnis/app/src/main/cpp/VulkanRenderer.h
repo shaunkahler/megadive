@@ -3,8 +3,10 @@
 #include <vector>
 #include <jni.h>
 #include <android/log.h>
+#include <android/asset_manager.h>
 #include "Math.h"
 #include "UIManager.h"
+#include "stb_truetype.h"
 
 #define XR_USE_PLATFORM_ANDROID
 #define XR_USE_GRAPHICS_API_VULKAN
@@ -36,7 +38,7 @@ public:
     VulkanRenderer();
     ~VulkanRenderer();
 
-    void Initialize(XrInstance xrInstance, XrSystemId systemId);
+    void Initialize(XrInstance xrInstance, XrSystemId systemId, class AAssetManager* assetManager);
     void RenderFrame(float deltaTime, float fadeAlpha);
     
     // Hands
@@ -56,6 +58,7 @@ public:
     void EndRender();
 
 private:
+    AAssetManager* m_assetManager = nullptr;
     XrInstance m_xrInstance = XR_NULL_HANDLE;
     XrSystemId m_systemId = XR_NULL_SYSTEM_ID;
 
@@ -82,10 +85,30 @@ private:
     VkImageView m_currentImageView = VK_NULL_HANDLE;
     VkFramebuffer m_currentFramebuffer = VK_NULL_HANDLE;
 
+    // UI Rendering
+    VkPipelineLayout m_uiPipelineLayout = VK_NULL_HANDLE;
+    VkPipeline m_uiPipeline = VK_NULL_HANDLE;
+    
+    VkDescriptorSetLayout m_uiDescriptorSetLayout = VK_NULL_HANDLE;
+    VkDescriptorPool m_uiDescriptorPool = VK_NULL_HANDLE;
+    VkDescriptorSet m_uiDescriptorSet = VK_NULL_HANDLE;
+    
+    VkImage m_fontImage = VK_NULL_HANDLE;
+    VkDeviceMemory m_fontImageMemory = VK_NULL_HANDLE;
+    VkImageView m_fontImageView = VK_NULL_HANDLE;
+    VkSampler m_fontSampler = VK_NULL_HANDLE;
+    
+    stbtt_bakedchar m_cdata[96]; // ASCII 32..126 is 95 chars
+    
+    VkBuffer m_uiVertexBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory m_uiVertexBufferMemory = VK_NULL_HANDLE;
+
     void CreateInstance();
     void CreateDevice();
     void SetupRenderPass();
     void BuildPipeline();
+    void BuildUIPipeline();
+    void LoadFont();
     void CreateVertexBuffer();
     void BuildFadeInPipeline();
     uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
