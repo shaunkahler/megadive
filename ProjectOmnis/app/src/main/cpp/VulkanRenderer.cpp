@@ -574,8 +574,8 @@ void VulkanRenderer::LoadFont() {
     off_t fontLength = AAsset_getLength(asset);
     const void* fontData = AAsset_getBuffer(asset);
 
-    uint8_t* temp_bitmap = new uint8_t[1024 * 1024];
-    stbtt_BakeFontBitmap((const unsigned char*)fontData, 0, 128.0f, temp_bitmap, 1024, 1024, 32, 96, m_cdata);
+    uint8_t* temp_bitmap = new uint8_t[2048 * 2048];
+    stbtt_BakeFontBitmap((const unsigned char*)fontData, 0, 96.0f, temp_bitmap, 2048, 2048, 32, 96, m_cdata);
     AAsset_close(asset);
 
     // Create staging buffer
@@ -583,7 +583,7 @@ void VulkanRenderer::LoadFont() {
     VkDeviceMemory stagingMemory;
     
     VkBufferCreateInfo bufferInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
-    bufferInfo.size = 1024 * 1024;
+    bufferInfo.size = 2048 * 2048;
     bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     VK_CHECK(vkCreateBuffer(m_vkDevice, &bufferInfo, nullptr, &stagingBuffer));
 
@@ -605,8 +605,8 @@ void VulkanRenderer::LoadFont() {
     // Create Image
     VkImageCreateInfo imageInfo = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
     imageInfo.imageType = VK_IMAGE_TYPE_2D;
-    imageInfo.extent.width = 1024;
-    imageInfo.extent.height = 1024;
+    imageInfo.extent.width = 2048;
+    imageInfo.extent.height = 2048;
     imageInfo.extent.depth = 1;
     imageInfo.mipLevels = 1;
     imageInfo.arrayLayers = 1;
@@ -648,8 +648,8 @@ void VulkanRenderer::LoadFont() {
     region.imageSubresource.mipLevel = 0;
     region.imageSubresource.baseArrayLayer = 0;
     region.imageSubresource.layerCount = 1;
-    region.imageExtent.width = 1024;
-    region.imageExtent.height = 1024;
+    region.imageExtent.width = 2048;
+    region.imageExtent.height = 2048;
     region.imageExtent.depth = 1;
     vkCmdCopyBufferToImage(m_vkCommandBuffer, stagingBuffer, m_fontImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
@@ -819,14 +819,14 @@ void VulkanRenderer::BuildUIPipeline() {
     VkPipelineRasterizationStateCreateInfo rasterizer = {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizer.lineWidth = 1.0f;
-    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT; // Wait! Text might be drawn front-facing or double-sided. For quads let's use NONE to be safe.
+    rasterizer.cullMode = VK_CULL_MODE_NONE; // Fix: Text might be drawn front-facing or double-sided.
     rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     
     VkPipelineMultisampleStateCreateInfo multisampling = {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
     multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
     
     VkPipelineDepthStencilStateCreateInfo depthStencil = {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
-    depthStencil.depthTestEnable = VK_TRUE;
+    depthStencil.depthTestEnable = VK_FALSE; // Fix: Text always renders on top of the menu box
     depthStencil.depthWriteEnable = VK_FALSE;
     depthStencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
     
@@ -993,14 +993,16 @@ void VulkanRenderer::RenderHands(const XrHandJointLocationEXT* leftJoints, bool 
 void VulkanRenderer::RenderLaser(const float origin[3], const float dir[3], const float color[4], const Matrix4x4& viewProj) {
     if (m_pipeline == VK_NULL_HANDLE) return;
 
+    vkCmdBindPipeline(m_vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
+
     VkDeviceSize offsets[] = {0};
     vkCmdBindVertexBuffers(m_vkCommandBuffer, 0, 1, &m_redVertexBuffer, offsets);
 
     Matrix4x4 model, mvp;
     
-    // Stretch cube to make a long laser. 10 meters long, 2mm thick.
+    // Stretch cube to make a long laser. 10 meters long, 5mm thick (easier to see).
     float length = 10.0f;
-    float scale[3] = {0.002f, 0.002f, length};
+    float scale[3] = {0.005f, 0.005f, length};
     
     XrPosef pose;
     pose.position.x = origin[0] + dir[0] * (length * 0.5f);
@@ -1096,7 +1098,7 @@ void VulkanRenderer::RenderMenuButtons(const std::vector<MenuButton>& buttons, c
         for (char c : btn.label) {
             if (c >= 32 && c < 128) {
                 stbtt_aligned_quad q;
-                stbtt_GetBakedQuad(m_cdata, 1024, 1024, c - 32, &x_dummy, &y_dummy, &q, 1);
+                stbtt_GetBakedQuad(m_cdata, 2048, 2048, c - 32, &x_dummy, &y_dummy, &q, 1);
             }
         }
         float textWidth = x_dummy;
@@ -1125,7 +1127,7 @@ void VulkanRenderer::RenderMenuButtons(const std::vector<MenuButton>& buttons, c
         for (char c : btn.label) {
             if (c >= 32 && c < 128) {
                 stbtt_aligned_quad q;
-                stbtt_GetBakedQuad(m_cdata, 1024, 1024, c - 32, &temp_x, &temp_y, &q, 1);
+                stbtt_GetBakedQuad(m_cdata, 2048, 2048, c - 32, &temp_x, &temp_y, &q, 1);
                 
                 float qx0 = startX + q.x0 * scale;
                 float qy0 = yOffset - q.y0 * scale; 
