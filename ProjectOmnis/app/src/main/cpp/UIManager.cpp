@@ -23,40 +23,30 @@ void UIManager::Initialize(XrSpace headSpace, XrSpace worldSpace) {
 void UIManager::InitializeLauncherMenu() {
     LOGI("Populating Spatial Home Launcher App Shortcuts...");
     
-    // We will place 4 floating 3D menus side-by-side in front of the user (e.g. 1.2 meters away, 1.0 meter high)
-    const char* appNames[] = { "Meta Browser", "Settings", "System Shell", "MegaDive MMO" };
-    const char* appDescs[] = { "Browse the Web", "Device Configuration", "Access OS Shell", "Play MegaDive" };
-    const char* packages[] = { "com.oculus.browser", "com.android.settings", "com.oculus.vrshell", "com.megadive.mmo" };
-    float colors[][3] = {
-        {0.0f, 0.4f, 1.0f}, // Blue
-        {0.0f, 0.8f, 0.2f}, // Green
-        {1.0f, 0.6f, 0.0f}, // Orange
-        {0.9f, 0.1f, 0.1f}  // Red
-    };
-
-    for (int i = 0; i < 4; ++i) {
-        MenuButton btn;
-        btn.label = appNames[i];
-        btn.description = appDescs[i];
-        btn.packageName = packages[i];
-        
-        // Centered straight ahead, right in front of the user (0.6 meters away). Y=0.0f is eye-level since reference space is LOCAL.
-        btn.pose.position = { -0.225f + i * 0.15f, -0.1f, -0.6f };
-        btn.pose.orientation = { 0.0f, 0.0f, 0.0f, 1.0f }; // Identity (facing straight forward)
-        
-        btn.size[0] = 0.12f; // Width (12cm)
-        btn.size[1] = 0.12f; // Height (12cm)
-        btn.size[2] = 0.02f; // Depth (2cm)
-        
-        btn.color[0] = colors[i][0];
-        btn.color[1] = colors[i][1];
-        btn.color[2] = colors[i][2];
-        
-        btn.hovered = false;
-        btn.triggered = false;
-        
-        m_menuButtons.push_back(btn);
-    }
+    // We will place 1 floating 3D menu directly in front of the user
+    MenuButton btn;
+    btn.label = "MegaDive MMO";
+    btn.description = "Play MegaDive";
+    btn.packageName = "com.megadive.mmo";
+    
+    // Centered straight ahead, right in front of the user (0.6 meters away). Y=0.0f is eye-level since reference space is LOCAL.
+    btn.pose.position = { 0.0f, -0.1f, -0.6f };
+    btn.pose.orientation = { 0.0f, 0.0f, 0.0f, 1.0f }; // Identity (facing straight forward)
+    
+    // Use UNIFORM scaling so the 3D model doesn't get squished!
+    // We'll scale it evenly across X, Y, and Z. 
+    btn.size[0] = 0.15f; // Width
+    btn.size[1] = 0.15f; // Height
+    btn.size[2] = 0.15f; // Depth
+    
+    btn.color[0] = 0.0f; // R
+    btn.color[1] = 0.4f; // G
+    btn.color[2] = 1.0f; // B (Blueish)
+    
+    btn.hovered = false;
+    btn.triggered = false;
+    
+    m_menuButtons.push_back(btn);
 }
 
 static void LaunchAndroidPackage(struct android_app* app, const char* packageName) {
@@ -366,7 +356,10 @@ void UIManager::PositionMenuInFrontOf(XrPosef headPose) {
     uprightOrientation.w = std::cos(yaw * 0.5f);
 
     for (size_t i = 0; i < m_menuButtons.size(); ++i) {
-        float offset = -0.225f + i * 0.15f; // EXACT SAME SPACING as original: 15cm spacing
+        // Calculate offset to center the items dynamically based on how many exist
+        float totalWidth = (m_menuButtons.size() - 1) * 0.15f;
+        float offset = -(totalWidth / 2.0f) + (i * 0.15f);
+        
         m_menuButtons[i].pose.position.x = centerX + right[0] * offset;
         m_menuButtons[i].pose.position.y = centerY;
         m_menuButtons[i].pose.position.z = centerZ + right[2] * offset;
