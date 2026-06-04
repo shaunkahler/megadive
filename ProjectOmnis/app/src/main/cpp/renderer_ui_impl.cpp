@@ -13,7 +13,7 @@ void VulkanRenderer::LoadFont() {
     const void* fontData = AAsset_getBuffer(asset);
 
     uint8_t* temp_bitmap = new uint8_t[1024 * 1024];
-    stbtt_BakeFontBitmap((const unsigned char*)fontData, 0, 128.0f, temp_bitmap, 1024, 1024, 32, 96, m_cdata);
+    stbtt_BakeFontBitmap((const unsigned char*)fontData, 0, 64.0f, temp_bitmap, 1024, 1024, 32, 96, m_cdata);
     AAsset_close(asset);
 
     // Create staging buffer
@@ -257,7 +257,7 @@ void VulkanRenderer::BuildUIPipeline() {
     VkPipelineRasterizationStateCreateInfo rasterizer = {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizer.lineWidth = 1.0f;
-    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT; // Wait! Text might be drawn front-facing or double-sided. For quads let's use NONE to be safe.
+    rasterizer.cullMode = VK_CULL_MODE_NONE; // Fix: Text might be drawn front-facing or double-sided.
     rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     
     VkPipelineMultisampleStateCreateInfo multisampling = {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};

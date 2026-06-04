@@ -18,6 +18,7 @@ add_library(omnis_engine SHARED
     WorldManager.cpp
     NetworkClient.cpp
     VoiceInterface.cpp
+    ModelLoader.cpp
 )
 
 # Target Include Directories

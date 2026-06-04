@@ -25,6 +25,7 @@ void UIManager::InitializeLauncherMenu() {
     
     // We will place 4 floating 3D menus side-by-side in front of the user (e.g. 1.2 meters away, 1.0 meter high)
     const char* appNames[] = { "Meta Browser", "Settings", "System Shell", "MegaDive MMO" };
+    const char* appDescs[] = { "Browse the Web", "Device Configuration", "Access OS Shell", "Play MegaDive" };
     const char* packages[] = { "com.oculus.browser", "com.android.settings", "com.oculus.vrshell", "com.megadive.mmo" };
     float colors[][3] = {
         {0.0f, 0.4f, 1.0f}, // Blue
@@ -36,6 +37,7 @@ void UIManager::InitializeLauncherMenu() {
     for (int i = 0; i < 4; ++i) {
         MenuButton btn;
         btn.label = appNames[i];
+        btn.description = appDescs[i];
         btn.packageName = packages[i];
         
         // Centered straight ahead, right in front of the user (0.6 meters away). Y=0.0f is eye-level since reference space is LOCAL.

@@ -1,5 +1,6 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "VulkanRenderer.h"
+#include "ModelLoader.h"
 #include <stdexcept>
 #include <string>
 #include <cstring>
@@ -313,8 +314,14 @@ uint32_t VulkanRenderer::FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFla
 }
 
 void VulkanRenderer::CreateVertexBuffer() {
+    MeshData modelData = ModelLoader::LoadGLB(m_assetManager, "models/menu1.glb");
+    
+    bool hasModel = !modelData.vertices.empty();
+    size_t vertexBufferSize = hasModel ? modelData.vertices.size() * sizeof(MeshVertex) : sizeof(cubeVertices);
+    const void* vertexDataPtr = hasModel ? (const void*)modelData.vertices.data() : (const void*)cubeVertices;
+
     VkBufferCreateInfo bufferInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
-    bufferInfo.size = sizeof(cubeVertices);
+    bufferInfo.size = vertexBufferSize;
     bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
@@ -332,10 +339,38 @@ void VulkanRenderer::CreateVertexBuffer() {
 
     void* data;
     vkMapMemory(m_vkDevice, m_vertexBufferMemory, 0, bufferInfo.size, 0, &data);
-    memcpy(data, cubeVertices, (size_t)bufferInfo.size);
+    memcpy(data, vertexDataPtr, (size_t)bufferInfo.size);
     vkUnmapMemory(m_vkDevice, m_vertexBufferMemory);
 
+    if (hasModel && !modelData.indices.empty()) {
+        m_indexCount = modelData.indices.size();
+        VkBufferCreateInfo indexBufferInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+        indexBufferInfo.size = modelData.indices.size() * sizeof(uint32_t);
+        indexBufferInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+        indexBufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        VK_CHECK(vkCreateBuffer(m_vkDevice, &indexBufferInfo, nullptr, &m_indexBuffer));
+
+        VkMemoryRequirements indexMemRequirements;
+        vkGetBufferMemoryRequirements(m_vkDevice, m_indexBuffer, &indexMemRequirements);
+
+        VkMemoryAllocateInfo indexAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+        indexAllocInfo.allocationSize = indexMemRequirements.size;
+        indexAllocInfo.memoryTypeIndex = FindMemoryType(indexMemRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+        VK_CHECK(vkAllocateMemory(m_vkDevice, &indexAllocInfo, nullptr, &m_indexBufferMemory));
+        vkBindBufferMemory(m_vkDevice, m_indexBuffer, m_indexBufferMemory, 0);
+
+        void* indexData;
+        vkMapMemory(m_vkDevice, m_indexBufferMemory, 0, indexBufferInfo.size, 0, &indexData);
+        memcpy(indexData, modelData.indices.data(), (size_t)indexBufferInfo.size);
+        vkUnmapMemory(m_vkDevice, m_indexBufferMemory);
+    } else {
+        m_indexCount = 0;
+    }
+
     // Create Red Vertex Buffer for Laser
+    bufferInfo.size = sizeof(cubeVertices);
     VK_CHECK(vkCreateBuffer(m_vkDevice, &bufferInfo, nullptr, &m_redVertexBuffer));
     vkGetBufferMemoryRequirements(m_vkDevice, m_redVertexBuffer, &memRequirements);
     allocInfo.allocationSize = memRequirements.size;
@@ -1071,7 +1106,12 @@ void VulkanRenderer::RenderMenuButtons(const std::vector<MenuButton>& buttons, c
         pcd.mvp = mvp;
         pcd.color[0] = btn.color[0]; pcd.color[1] = btn.color[1]; pcd.color[2] = btn.color[2]; pcd.color[3] = 1.0f;
         vkCmdPushConstants(m_vkCommandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstantData), &pcd);
-        vkCmdDraw(m_vkCommandBuffer, 36, 1, 0, 0);
+        if (m_indexCount > 0) {
+            vkCmdBindIndexBuffer(m_vkCommandBuffer, m_indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+            vkCmdDrawIndexed(m_vkCommandBuffer, m_indexCount, 1, 0, 0, 0);
+        } else {
+            vkCmdDraw(m_vkCommandBuffer, 36, 1, 0, 0);
+        }
     }
 
     if (m_uiPipeline == VK_NULL_HANDLE || m_fontImage == VK_NULL_HANDLE) return;

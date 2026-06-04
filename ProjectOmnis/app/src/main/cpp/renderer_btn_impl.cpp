@@ -40,77 +40,94 @@ void VulkanRenderer::RenderMenuButtons(const std::vector<MenuButton>& buttons, c
 
     for (size_t i = 0; i < buttons.size(); ++i) {
         const auto& btn = buttons[i];
-        if (btn.label.empty()) continue;
+        if (btn.label.empty() && btn.description.empty()) continue;
         
         buttonStartVertices[i] = vertexCount;
 
-        float x_dummy = 0.0f, y_dummy = 0.0f;
-        for (char c : btn.label) {
-            if (c >= 32 && c < 128) {
-                stbtt_aligned_quad q;
-                stbtt_GetBakedQuad(m_cdata, 1024, 1024, c - 32, &x_dummy, &y_dummy, &q, 1);
+        auto renderText = [&](const std::string& text, float yOffsetScale, float sizeScaleFactor) {
+            if (text.empty()) return;
+            float x_dummy = 0.0f, y_dummy = 0.0f;
+            for (char c : text) {
+                if (c >= 32 && c < 128) {
+                    stbtt_aligned_quad q;
+                    stbtt_GetBakedQuad(m_cdata, 2048, 2048, c - 32, &x_dummy, &y_dummy, &q, 1);
+                }
             }
-        }
-        float textWidth = x_dummy;
-        float textHeight = 128.0f;
-        
-        float baseScale = btn.size[1] / textHeight * 0.4f; 
-        if (btn.hovered) baseScale *= 1.15f;
-        
-        float maxTextWidth = btn.size[0] * 0.9f;
-        if (btn.hovered) maxTextWidth *= 1.15f;
-        float actualWidth = textWidth * baseScale;
-        float scale = baseScale;
-        if (actualWidth > maxTextWidth) {
-            scale *= (maxTextWidth / actualWidth);
-        }
-        
-        float startX = - (textWidth * scale) / 2.0f;
-        float yOffset = - (textHeight * 0.25f) * scale; 
-        
-        float temp_x = 0.0f;
-        float temp_y = 0.0f;
-
-        float zOffset = btn.size[2] / 2.0f + 0.005f;
-        if (btn.hovered) zOffset = (btn.size[2] * 2.0f) / 2.0f + 0.005f;
-
-        for (char c : btn.label) {
-            if (c >= 32 && c < 128) {
-                stbtt_aligned_quad q;
-                stbtt_GetBakedQuad(m_cdata, 1024, 1024, c - 32, &temp_x, &temp_y, &q, 1);
-                
-                float qx0 = startX + q.x0 * scale;
-                float qy0 = yOffset - q.y0 * scale; 
-                float qx1 = startX + q.x1 * scale;
-                float qy1 = yOffset - q.y1 * scale;
-
-                mappedData[vertexCount*5 + 0] = qx0; mappedData[vertexCount*5 + 1] = qy0; mappedData[vertexCount*5 + 2] = zOffset;
-                mappedData[vertexCount*5 + 3] = q.s0; mappedData[vertexCount*5 + 4] = q.t0;
-                vertexCount++;
-                
-                mappedData[vertexCount*5 + 0] = qx1; mappedData[vertexCount*5 + 1] = qy0; mappedData[vertexCount*5 + 2] = zOffset;
-                mappedData[vertexCount*5 + 3] = q.s1; mappedData[vertexCount*5 + 4] = q.t0;
-                vertexCount++;
-                
-                mappedData[vertexCount*5 + 0] = qx1; mappedData[vertexCount*5 + 1] = qy1; mappedData[vertexCount*5 + 2] = zOffset;
-                mappedData[vertexCount*5 + 3] = q.s1; mappedData[vertexCount*5 + 4] = q.t1;
-                vertexCount++;
-                
-                mappedData[vertexCount*5 + 0] = qx1; mappedData[vertexCount*5 + 1] = qy1; mappedData[vertexCount*5 + 2] = zOffset;
-                mappedData[vertexCount*5 + 3] = q.s1; mappedData[vertexCount*5 + 4] = q.t1;
-                vertexCount++;
-                
-                mappedData[vertexCount*5 + 0] = qx0; mappedData[vertexCount*5 + 1] = qy1; mappedData[vertexCount*5 + 2] = zOffset;
-                mappedData[vertexCount*5 + 3] = q.s0; mappedData[vertexCount*5 + 4] = q.t1;
-                vertexCount++;
-                
-                mappedData[vertexCount*5 + 0] = qx0; mappedData[vertexCount*5 + 1] = qy0; mappedData[vertexCount*5 + 2] = zOffset;
-                mappedData[vertexCount*5 + 3] = q.s0; mappedData[vertexCount*5 + 4] = q.t0;
-                vertexCount++;
+            float textWidth = x_dummy;
+            float textHeight = 96.0f;
+            
+            float baseScale = btn.size[1] / textHeight * sizeScaleFactor; 
+            if (btn.hovered) baseScale *= 1.15f;
+            
+            float maxTextWidth = btn.size[0] * 0.9f;
+            if (btn.hovered) maxTextWidth *= 1.15f;
+            float actualWidth = textWidth * baseScale;
+            float scale = baseScale;
+            if (actualWidth > maxTextWidth) {
+                scale *= (maxTextWidth / actualWidth);
             }
-        }
+            
+            float startX = - (textWidth * scale) / 2.0f;
+            float yOffset = (textHeight * yOffsetScale) * scale; 
+            
+            float temp_x = 0.0f;
+            float temp_y = 0.0f;
+
+            float zOffset = btn.size[2] + 0.01f; // Push it further out to ensure it's not clipped inside the box
+            if (btn.hovered) zOffset = (btn.size[2] * 2.0f) + 0.01f;
+
+            for (char c : text) {
+                if (c >= 32 && c < 128) {
+                    stbtt_aligned_quad q;
+                    stbtt_GetBakedQuad(m_cdata, 2048, 2048, c - 32, &temp_x, &temp_y, &q, 1);
+                    
+                    float qx0 = startX + q.x0 * scale;
+                    float qy0 = yOffset + q.y0 * scale; // Add instead of subtract to match Vulkan Y-down
+                    float qx1 = startX + q.x1 * scale;
+                    float qy1 = yOffset + q.y1 * scale;
+
+                    // Counter-clockwise winding for Vulkan
+                    mappedData[vertexCount*5 + 0] = qx0; mappedData[vertexCount*5 + 1] = qy0; mappedData[vertexCount*5 + 2] = zOffset;
+                    mappedData[vertexCount*5 + 3] = q.s0; mappedData[vertexCount*5 + 4] = q.t0;
+                    vertexCount++;
+                    
+                    mappedData[vertexCount*5 + 0] = qx0; mappedData[vertexCount*5 + 1] = qy1; mappedData[vertexCount*5 + 2] = zOffset;
+                    mappedData[vertexCount*5 + 3] = q.s0; mappedData[vertexCount*5 + 4] = q.t1;
+                    vertexCount++;
+                    
+                    mappedData[vertexCount*5 + 0] = qx1; mappedData[vertexCount*5 + 1] = qy1; mappedData[vertexCount*5 + 2] = zOffset;
+                    mappedData[vertexCount*5 + 3] = q.s1; mappedData[vertexCount*5 + 4] = q.t1;
+                    vertexCount++;
+                    
+                    mappedData[vertexCount*5 + 0] = qx1; mappedData[vertexCount*5 + 1] = qy1; mappedData[vertexCount*5 + 2] = zOffset;
+                    mappedData[vertexCount*5 + 3] = q.s1; mappedData[vertexCount*5 + 4] = q.t1;
+                    vertexCount++;
+                    
+                    mappedData[vertexCount*5 + 0] = qx1; mappedData[vertexCount*5 + 1] = qy0; mappedData[vertexCount*5 + 2] = zOffset;
+                    mappedData[vertexCount*5 + 3] = q.s1; mappedData[vertexCount*5 + 4] = q.t0;
+                    vertexCount++;
+                    
+                    mappedData[vertexCount*5 + 0] = qx0; mappedData[vertexCount*5 + 1] = qy0; mappedData[vertexCount*5 + 2] = zOffset;
+                    mappedData[vertexCount*5 + 3] = q.s0; mappedData[vertexCount*5 + 4] = q.t0;
+                    vertexCount++;
+                }
+            }
+        };
+
+        // Main label (centered slightly higher)
+        renderText(btn.label, -0.1f, 0.3f);
+        
+        // Description text (smaller, centered lower)
+        renderText(btn.description, 0.8f, 0.15f);
+
         buttonVertexCounts[i] = vertexCount - buttonStartVertices[i];
     }
+
+    VkMappedMemoryRange range = {VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE};
+    range.memory = m_uiVertexBufferMemory;
+    range.offset = 0;
+    range.size = VK_WHOLE_SIZE;
+    vkFlushMappedMemoryRanges(m_vkDevice, 1, &range);
 
     vkUnmapMemory(m_vkDevice, m_uiVertexBufferMemory);
 

@@ -79,6 +79,10 @@ private:
     VkBuffer m_vertexBuffer = VK_NULL_HANDLE;
     VkDeviceMemory m_vertexBufferMemory = VK_NULL_HANDLE;
 
+    VkBuffer m_indexBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory m_indexBufferMemory = VK_NULL_HANDLE;
+    uint32_t m_indexCount = 0;
+
     VkBuffer m_redVertexBuffer = VK_NULL_HANDLE;
     VkDeviceMemory m_redVertexBufferMemory = VK_NULL_HANDLE;
 

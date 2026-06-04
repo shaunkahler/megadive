@@ -21,6 +21,7 @@ struct VirtualScreen {
 
 struct MenuButton {
     std::string label;
+    std::string description;
     std::string packageName;
     XrPosef pose;
     float size[3]; // width, height, depth
