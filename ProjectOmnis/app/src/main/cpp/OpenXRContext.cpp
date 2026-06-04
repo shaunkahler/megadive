@@ -228,8 +228,11 @@ void OpenXRContext::ProcessFrame() {
             waitInfo.timeout = XR_INFINITE_DURATION;
             XR_CHECK(xrWaitSwapchainImage(m_swapchains[i].swapchain, &waitInfo));
 
-            // Clear left eye to electric blue, right eye to deep purple
-            VkClearColorValue color = (i == 0) ? VkClearColorValue{{0.0f, 0.4f, 1.0f, 1.0f}} : VkClearColorValue{{0.5f, 0.0f, 0.8f, 1.0f}};
+            // Clear to rapid random colors (SEIZURE MODE)
+            float r = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+            float g = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+            float b = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+            VkClearColorValue color = VkClearColorValue{{r, g, b, 1.0f}};
             m_vulkan.ClearImage(m_swapchains[i].images[imageIndex].image, color);
 
             m_vulkan.BeginRender(m_swapchains[i].images[imageIndex].image, m_swapchains[i].width, m_swapchains[i].height);
