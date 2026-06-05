@@ -1,6 +1,6 @@
 # MegaDive OS 🌌
 
-**A Standalone Spatial OS Architecture for Meta Quest (Snapdragon XR2 Gen 2)**
+**A Standalone Spatial OS Architecture for Meta Quest 3 (Snapdragon XR2 Gen 2)**
 
 MegaDive is an experimental, bare-metal native Android/Linux application designed to operate as a primary Shell interface, completely bypassing the standard Meta Quest Horizon OS. Built strictly in C++ using the Android NDK and designed for OpenXR, MegaDive focuses on maximizing thermal efficiency, aggressive memory optimization, and zero-latency asynchronous rendering on resource-constrained mobile hardware.
 
