@@ -45,10 +45,9 @@ public:
     void RenderHands(const XrHandJointLocationEXT* leftJoints, bool leftActive, 
                      const XrHandJointLocationEXT* rightJoints, bool rightActive,
                      const struct Matrix4x4& viewProj);
-
-    // Menus
     void RenderMenuButtons(const std::vector<MenuButton>& buttons, const struct Matrix4x4& viewProj);
     void RenderLaser(const float origin[3], const float dir[3], const float color[4], const struct Matrix4x4& viewProj);
+    void RenderSonic(const struct Matrix4x4& viewProj);
 
     XrGraphicsBindingVulkanKHR GetVulkanBinding() const;
     void SetupCommandBuffers();
@@ -82,6 +81,12 @@ private:
     VkBuffer m_indexBuffer = VK_NULL_HANDLE;
     VkDeviceMemory m_indexBufferMemory = VK_NULL_HANDLE;
     uint32_t m_indexCount = 0;
+
+    VkBuffer m_sonicVertexBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory m_sonicVertexBufferMemory = VK_NULL_HANDLE;
+    VkBuffer m_sonicIndexBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory m_sonicIndexBufferMemory = VK_NULL_HANDLE;
+    uint32_t m_sonicIndexCount = 0;
 
     VkBuffer m_redVertexBuffer = VK_NULL_HANDLE;
     VkDeviceMemory m_redVertexBufferMemory = VK_NULL_HANDLE;

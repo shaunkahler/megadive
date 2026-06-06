@@ -240,6 +240,7 @@ void OpenXRContext::ProcessFrame() {
             Matrix4x4_Multiply(&viewProj, &proj, &view);
             
             m_vulkan.RenderHands(m_leftHandJoints, m_leftHandActive, m_rightHandJoints, m_rightHandActive, viewProj);
+            m_vulkan.RenderSonic(viewProj);
             if (m_uiManager.IsMenuVisible()) {
                 m_vulkan.RenderMenuButtons(m_uiManager.GetMenuButtons(), viewProj);
             }

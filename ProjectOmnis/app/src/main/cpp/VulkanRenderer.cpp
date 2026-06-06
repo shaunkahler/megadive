@@ -93,6 +93,12 @@ VulkanRenderer::~VulkanRenderer() {
         if (m_renderPass) vkDestroyRenderPass(m_vkDevice, m_renderPass, nullptr);
         if (m_vertexBuffer) vkDestroyBuffer(m_vkDevice, m_vertexBuffer, nullptr);
         if (m_vertexBufferMemory) vkFreeMemory(m_vkDevice, m_vertexBufferMemory, nullptr);
+        if (m_indexBuffer) vkDestroyBuffer(m_vkDevice, m_indexBuffer, nullptr);
+        if (m_indexBufferMemory) vkFreeMemory(m_vkDevice, m_indexBufferMemory, nullptr);
+        if (m_sonicVertexBuffer) vkDestroyBuffer(m_vkDevice, m_sonicVertexBuffer, nullptr);
+        if (m_sonicVertexBufferMemory) vkFreeMemory(m_vkDevice, m_sonicVertexBufferMemory, nullptr);
+        if (m_sonicIndexBuffer) vkDestroyBuffer(m_vkDevice, m_sonicIndexBuffer, nullptr);
+        if (m_sonicIndexBufferMemory) vkFreeMemory(m_vkDevice, m_sonicIndexBufferMemory, nullptr);
         if (m_redVertexBuffer) vkDestroyBuffer(m_vkDevice, m_redVertexBuffer, nullptr);
         if (m_redVertexBufferMemory) vkFreeMemory(m_vkDevice, m_redVertexBufferMemory, nullptr);
 
@@ -367,6 +373,66 @@ void VulkanRenderer::CreateVertexBuffer() {
         vkUnmapMemory(m_vkDevice, m_indexBufferMemory);
     } else {
         m_indexCount = 0;
+    }
+
+    // Load Sonic
+    MeshData sonicData = ModelLoader::LoadGLB(m_assetManager, "models/sonic_the_hedgehog.glb");
+    bool hasSonic = !sonicData.vertices.empty();
+    if (hasSonic) {
+        float minX = 9999, minY = 9999, minZ = 9999;
+        float maxX = -9999, maxY = -9999, maxZ = -9999;
+        for (const auto& v : sonicData.vertices) {
+            if (v.pos[0] < minX) minX = v.pos[0];
+            if (v.pos[1] < minY) minY = v.pos[1];
+            if (v.pos[2] < minZ) minZ = v.pos[2];
+            if (v.pos[0] > maxX) maxX = v.pos[0];
+            if (v.pos[1] > maxY) maxY = v.pos[1];
+            if (v.pos[2] > maxZ) maxZ = v.pos[2];
+        }
+        LOGI("Sonic Bounds: Min(%.4f, %.4f, %.4f) Max(%.4f, %.4f, %.4f)", minX, minY, minZ, maxX, maxY, maxZ);
+
+        VkBufferCreateInfo sBufferInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+        sBufferInfo.size = sonicData.vertices.size() * sizeof(MeshVertex);
+        sBufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+        sBufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        VK_CHECK(vkCreateBuffer(m_vkDevice, &sBufferInfo, nullptr, &m_sonicVertexBuffer));
+        
+        VkMemoryRequirements sMemReqs;
+        vkGetBufferMemoryRequirements(m_vkDevice, m_sonicVertexBuffer, &sMemReqs);
+        VkMemoryAllocateInfo sAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+        sAllocInfo.allocationSize = sMemReqs.size;
+        sAllocInfo.memoryTypeIndex = FindMemoryType(sMemReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        VK_CHECK(vkAllocateMemory(m_vkDevice, &sAllocInfo, nullptr, &m_sonicVertexBufferMemory));
+        vkBindBufferMemory(m_vkDevice, m_sonicVertexBuffer, m_sonicVertexBufferMemory, 0);
+        
+        void* sData;
+        vkMapMemory(m_vkDevice, m_sonicVertexBufferMemory, 0, sBufferInfo.size, 0, &sData);
+        memcpy(sData, sonicData.vertices.data(), (size_t)sBufferInfo.size);
+        vkUnmapMemory(m_vkDevice, m_sonicVertexBufferMemory);
+
+        if (!sonicData.indices.empty()) {
+            m_sonicIndexCount = sonicData.indices.size();
+            VkBufferCreateInfo sIndexInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+            sIndexInfo.size = sonicData.indices.size() * sizeof(uint32_t);
+            sIndexInfo.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+            sIndexInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            VK_CHECK(vkCreateBuffer(m_vkDevice, &sIndexInfo, nullptr, &m_sonicIndexBuffer));
+            
+            VkMemoryRequirements siMemReqs;
+            vkGetBufferMemoryRequirements(m_vkDevice, m_sonicIndexBuffer, &siMemReqs);
+            VkMemoryAllocateInfo siAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+            siAllocInfo.allocationSize = siMemReqs.size;
+            siAllocInfo.memoryTypeIndex = FindMemoryType(siMemReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+            VK_CHECK(vkAllocateMemory(m_vkDevice, &siAllocInfo, nullptr, &m_sonicIndexBufferMemory));
+            vkBindBufferMemory(m_vkDevice, m_sonicIndexBuffer, m_sonicIndexBufferMemory, 0);
+            
+            void* siData;
+            vkMapMemory(m_vkDevice, m_sonicIndexBufferMemory, 0, sIndexInfo.size, 0, &siData);
+            memcpy(siData, sonicData.indices.data(), (size_t)sIndexInfo.size);
+            vkUnmapMemory(m_vkDevice, m_sonicIndexBufferMemory);
+        } else {
+            m_sonicIndexCount = 0;
+        }
     }
 
     // Create Red Vertex Buffer for Laser
@@ -1083,6 +1149,53 @@ void VulkanRenderer::RenderLaser(const float origin[3], const float dir[3], cons
     vkCmdDraw(m_vkCommandBuffer, 36, 1, 0, 0);
 }
 
+void VulkanRenderer::RenderSonic(const Matrix4x4& viewProj) {
+    if (m_pipeline == VK_NULL_HANDLE || m_sonicVertexBuffer == VK_NULL_HANDLE) return;
+
+    // Explicitly bind pipeline just in case
+    vkCmdBindPipeline(m_vkCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
+
+    VkDeviceSize offsets[] = {0};
+    vkCmdBindVertexBuffers(m_vkCommandBuffer, 0, 1, &m_sonicVertexBuffer, offsets);
+
+    Matrix4x4 model, mvp;
+    
+    // Position sonic to the right of the menu and further back so he doesn't clip the camera
+    for (int i = 0; i < 16; ++i) model.m[i] = 0.0f;
+    model.m[0] = model.m[5] = model.m[10] = model.m[15] = 1.0f;
+    model.m[12] = 0.8f;   // 0.8 meters to the right
+    model.m[13] = -0.5f;  // 0.5 meters UP from the floor (adjusting because his origin might be his center)
+    model.m[14] = -1.5f;  // 1.5 meters away
+
+    // Make him 5000x bigger! His true global size in the file is 0.2 millimeters tall!
+    float scale = 5000.0f; 
+    for (int i = 0; i < 3; ++i) {
+        model.m[0 * 4 + i] *= scale;
+        model.m[1 * 4 + i] *= scale;
+        model.m[2 * 4 + i] *= scale;
+    }
+
+    Matrix4x4 rotatedModel;
+    // Rotate -90 degrees around X.
+    // This perfectly stands him upright and flips his front to face you!
+    Matrix4x4_RotateX(&rotatedModel, &model, -90.0f);
+
+    Matrix4x4_Multiply(&mvp, &viewProj, &rotatedModel);
+    
+    PushConstantData pcd;
+    pcd.mvp = mvp;
+    pcd.color[0] = 0.8f; pcd.color[1] = 0.8f; pcd.color[2] = 0.8f; pcd.color[3] = 1.0f; // Gray-ish white for now
+    vkCmdPushConstants(m_vkCommandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstantData), &pcd);
+    
+    if (m_sonicIndexCount > 0) {
+        vkCmdBindIndexBuffer(m_vkCommandBuffer, m_sonicIndexBuffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdDrawIndexed(m_vkCommandBuffer, m_sonicIndexCount, 1, 0, 0, 0);
+    } else {
+        // Fallback draw
+        vkCmdDraw(m_vkCommandBuffer, 36, 1, 0, 0); 
+    }
+}
+
 void VulkanRenderer::RenderMenuButtons(const std::vector<MenuButton>& buttons, const Matrix4x4& viewProj) {
     if (m_pipeline == VK_NULL_HANDLE) return;
 
@@ -1100,7 +1213,12 @@ void VulkanRenderer::RenderMenuButtons(const std::vector<MenuButton>& buttons, c
         }
 
         CreateModelMatrix(&model, btn.pose, size);
-        Matrix4x4_Multiply(&mvp, &viewProj, &model);
+        
+        // Apply 90-degree Y rotation to the model so it faces the correct direction
+        Matrix4x4 rotatedModel;
+        Matrix4x4_RotateY(&rotatedModel, &model, 90.0f);
+        
+        Matrix4x4_Multiply(&mvp, &viewProj, &rotatedModel);
         
         PushConstantData pcd;
         pcd.mvp = mvp;

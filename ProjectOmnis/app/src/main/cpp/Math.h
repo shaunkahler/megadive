@@ -116,6 +116,34 @@ inline void CreateModelMatrix(Matrix4x4* result, const XrPosef pose, const float
     }
 }
 
+inline void Matrix4x4_RotateY(Matrix4x4* result, const Matrix4x4* m, float angleDegrees) {
+    float radians = angleDegrees * 3.14159265358979323846f / 180.0f;
+    float c = cosf(radians);
+    float s = sinf(radians);
+    
+    Matrix4x4 rot = {
+        c, 0, s, 0,
+        0, 1, 0, 0,
+       -s, 0, c, 0,
+        0, 0, 0, 1
+    };
+    Matrix4x4_Multiply(result, m, &rot);
+}
+
+inline void Matrix4x4_RotateX(Matrix4x4* result, const Matrix4x4* m, float angleDegrees) {
+    float radians = angleDegrees * 3.14159265358979323846f / 180.0f;
+    float c = cosf(radians);
+    float s = sinf(radians);
+    
+    Matrix4x4 rot = {
+        1, 0,  0, 0,
+        0, c,  s, 0,
+        0,-s,  c, 0,
+        0, 0,  0, 1
+    };
+    Matrix4x4_Multiply(result, m, &rot);
+}
+
 inline void CreateBoneMatrix(Matrix4x4* result, const XrVector3f& pA, const XrVector3f& pB, float thickness) {
     float dx = pB.x - pA.x;
     float dy = pB.y - pA.y;
