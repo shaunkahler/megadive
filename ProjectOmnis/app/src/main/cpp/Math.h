@@ -41,8 +41,9 @@ inline void CreateProjectionMatrix(Matrix4x4* result, const XrFovf fov, const fl
 
     result->m[2] = 0.0f;
     result->m[6] = 0.0f;
-    result->m[10] = -(farZ + nearZ) / (farZ - nearZ);
-    result->m[14] = -(2.0f * farZ * nearZ) / (farZ - nearZ);
+    // Vulkan depth range is [0, 1], not OpenGL's [-1, 1]
+    result->m[10] = -farZ / (farZ - nearZ);
+    result->m[14] = -(farZ * nearZ) / (farZ - nearZ);
 
     result->m[3] = 0.0f;
     result->m[7] = 0.0f;

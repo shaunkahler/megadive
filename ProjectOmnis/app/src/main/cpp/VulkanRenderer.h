@@ -67,7 +67,13 @@ private:
     VkDevice m_vkDevice = VK_NULL_HANDLE;
     VkQueue m_vkQueue = VK_NULL_HANDLE;
     uint32_t m_queueFamilyIndex = 0;
-    
+
+    VkImage m_depthImage = VK_NULL_HANDLE;
+    VkDeviceMemory m_depthImageMemory = VK_NULL_HANDLE;
+    VkImageView m_depthImageView = VK_NULL_HANDLE;
+    uint32_t m_depthWidth = 0;
+    uint32_t m_depthHeight = 0;
+
     VkCommandPool m_vkCommandPool = VK_NULL_HANDLE;
     VkCommandBuffer m_vkCommandBuffer = VK_NULL_HANDLE;
 

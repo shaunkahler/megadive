@@ -470,14 +470,31 @@ void VulkanRenderer::SetupRenderPass() {
     colorAttachmentRef.attachment = 0;
     colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
+    VkAttachmentDescription depthAttachment = {};
+    depthAttachment.format = VK_FORMAT_D32_SFLOAT;
+    depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference depthAttachmentRef = {};
+    depthAttachmentRef.attachment = 1;
+    depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
     VkSubpassDescription subpass = {};
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorAttachmentRef;
+    subpass.pDepthStencilAttachment = &depthAttachmentRef;
+
+    VkAttachmentDescription attachments[2] = {colorAttachment, depthAttachment};
 
     VkRenderPassCreateInfo renderPassInfo = {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
-    renderPassInfo.attachmentCount = 1;
-    renderPassInfo.pAttachments = &colorAttachment;
+    renderPassInfo.attachmentCount = 2;
+    renderPassInfo.pAttachments = attachments;
     renderPassInfo.subpassCount = 1;
     renderPassInfo.pSubpasses = &subpass;
 
@@ -544,13 +561,18 @@ void VulkanRenderer::BuildPipeline() {
     rasterizer.rasterizerDiscardEnable = VK_FALSE;
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizer.lineWidth = 1.0f;
-    rasterizer.cullMode = VK_CULL_MODE_NONE;
-    rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+    rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     rasterizer.depthBiasEnable = VK_FALSE;
 
     VkPipelineMultisampleStateCreateInfo multisampling = {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
     multisampling.sampleShadingEnable = VK_FALSE;
     multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    VkPipelineDepthStencilStateCreateInfo depthStencil = {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
+    depthStencil.depthTestEnable = VK_TRUE; 
+    depthStencil.depthWriteEnable = VK_TRUE;
+    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
 
     VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
     colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
@@ -585,6 +607,7 @@ void VulkanRenderer::BuildPipeline() {
     pipelineInfo.pViewportState = &viewportState;
     pipelineInfo.pRasterizationState = &rasterizer;
     pipelineInfo.pMultisampleState = &multisampling;
+    pipelineInfo.pDepthStencilState = &depthStencil;
     pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.pDynamicState = &dynamicStateInfo;
     pipelineInfo.layout = m_pipelineLayout;
@@ -598,6 +621,51 @@ void VulkanRenderer::BuildPipeline() {
 }
 
 void VulkanRenderer::BeginRender(VkImage image, uint32_t width, uint32_t height) {
+    // Dynamically create depth buffer if size changes or missing
+    if (m_depthImage == VK_NULL_HANDLE || m_depthWidth != width || m_depthHeight != height) {
+        if (m_depthImage != VK_NULL_HANDLE) {
+            vkDestroyImageView(m_vkDevice, m_depthImageView, nullptr);
+            vkDestroyImage(m_vkDevice, m_depthImage, nullptr);
+            vkFreeMemory(m_vkDevice, m_depthImageMemory, nullptr);
+        }
+        m_depthWidth = width;
+        m_depthHeight = height;
+
+        VkImageCreateInfo imageInfo = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.extent.width = width;
+        imageInfo.extent.height = height;
+        imageInfo.extent.depth = 1;
+        imageInfo.mipLevels = 1;
+        imageInfo.arrayLayers = 1;
+        imageInfo.format = VK_FORMAT_D32_SFLOAT;
+        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        VK_CHECK(vkCreateImage(m_vkDevice, &imageInfo, nullptr, &m_depthImage));
+
+        VkMemoryRequirements memReq;
+        vkGetImageMemoryRequirements(m_vkDevice, m_depthImage, &memReq);
+        VkMemoryAllocateInfo allocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+        allocInfo.allocationSize = memReq.size;
+        allocInfo.memoryTypeIndex = FindMemoryType(memReq.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        VK_CHECK(vkAllocateMemory(m_vkDevice, &allocInfo, nullptr, &m_depthImageMemory));
+        vkBindImageMemory(m_vkDevice, m_depthImage, m_depthImageMemory, 0);
+
+        VkImageViewCreateInfo viewInfo = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+        viewInfo.image = m_depthImage;
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = VK_FORMAT_D32_SFLOAT;
+        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        viewInfo.subresourceRange.baseMipLevel = 0;
+        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.baseArrayLayer = 0;
+        viewInfo.subresourceRange.layerCount = 1;
+        VK_CHECK(vkCreateImageView(m_vkDevice, &viewInfo, nullptr, &m_depthImageView));
+    }
+
     VkCommandBufferBeginInfo beginInfo = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     vkBeginCommandBuffer(m_vkCommandBuffer, &beginInfo);
@@ -614,10 +682,12 @@ void VulkanRenderer::BeginRender(VkImage image, uint32_t width, uint32_t height)
     viewInfo.subresourceRange.layerCount = 1;
     vkCreateImageView(m_vkDevice, &viewInfo, nullptr, &m_currentImageView);
 
+    VkImageView attachments[2] = {m_currentImageView, m_depthImageView};
+
     VkFramebufferCreateInfo fbInfo = {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
     fbInfo.renderPass = m_renderPass;
-    fbInfo.attachmentCount = 1;
-    fbInfo.pAttachments = &m_currentImageView;
+    fbInfo.attachmentCount = 2;
+    fbInfo.pAttachments = attachments;
     fbInfo.width = width;
     fbInfo.height = height;
     fbInfo.layers = 1;
@@ -628,6 +698,15 @@ void VulkanRenderer::BeginRender(VkImage image, uint32_t width, uint32_t height)
     renderPassInfo.framebuffer = m_currentFramebuffer;
     renderPassInfo.renderArea.offset = {0, 0};
     renderPassInfo.renderArea.extent = {width, height};
+
+    // We do NOT clear the color buffer here, OpenXR requires we preserve it or clear it ourselves earlier.
+    // BUT we DO need to clear the depth buffer!
+    VkClearValue clearValues[2] = {};
+    // Color clear is ignored since loadOp is LOAD, but we must provide it if it's in the list
+    clearValues[1].depthStencil = {1.0f, 0}; 
+
+    renderPassInfo.clearValueCount = 2;
+    renderPassInfo.pClearValues = clearValues;
 
     vkCmdBeginRenderPass(m_vkCommandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
     
@@ -1175,16 +1254,16 @@ void VulkanRenderer::RenderSonic(const Matrix4x4& viewProj) {
         model.m[2 * 4 + i] *= scale;
     }
 
-    Matrix4x4 rotatedModel;
-    // Rotate -90 degrees around X.
-    // This perfectly stands him upright and flips his front to face you!
-    Matrix4x4_RotateX(&rotatedModel, &model, -90.0f);
+    Matrix4x4 rotatedModel1, rotatedModel2;
+    // The model was exported with Z-up, but Vulkan is Y-down (-Y is up).
+    // Rotate -90 degrees around X to stand him up and flip him to face you!
+    Matrix4x4_RotateX(&rotatedModel1, &model, -90.0f);
 
-    Matrix4x4_Multiply(&mvp, &viewProj, &rotatedModel);
+    Matrix4x4_Multiply(&mvp, &viewProj, &rotatedModel1);
     
     PushConstantData pcd;
     pcd.mvp = mvp;
-    pcd.color[0] = 0.8f; pcd.color[1] = 0.8f; pcd.color[2] = 0.8f; pcd.color[3] = 1.0f; // Gray-ish white for now
+    pcd.color[0] = 1.0f; pcd.color[1] = 1.0f; pcd.color[2] = 1.0f; pcd.color[3] = 1.0f; // Pure white so we see true texture colors
     vkCmdPushConstants(m_vkCommandBuffer, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstantData), &pcd);
     
     if (m_sonicIndexCount > 0) {
